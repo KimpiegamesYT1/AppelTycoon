@@ -220,9 +220,11 @@ if (!firstVisit && gap0 > 30) handleGap(gap0);
 if (firstVisit) ui.welcome();
 
 let lastFrame = performance.now();
+let renderAcc = 0;
 function frame(t) {
-  const dt = Math.min(0.1, (t - lastFrame) / 1000);
+  const raw = (t - lastFrame) / 1000;
   lastFrame = t;
+  requestAnimationFrame(frame);
   const now = Date.now();
   const gap = (now - state.lastTick) / 1000;
   state.lastTick = now;
@@ -235,6 +237,12 @@ function frame(t) {
     // zacht geluidje per vertrekkende vrachtwagen, hooguit twee keer per seconde
     if (sales.length && t - (game.lastSaleSound || -1e9) > 500) { sfx.sale(); game.lastSaleSound = t; }
   }
+
+  // Zuinig: hooguit 30 beelden per seconde tekenen (de economie loopt gewoon door)
+  renderAcc += raw;
+  if (state.settings.quality !== 'high' && renderAcc < 1 / 30 - 0.004) return;
+  const dt = Math.min(0.1, renderAcc);
+  renderAcc = 0;
 
   game.prod = E.computeProduction(state, now);
   world.sync(state, game.prod);
@@ -251,14 +259,11 @@ function frame(t) {
     if (game.nextGolden <= 0) {
       world.showGolden(true);
       game.goldenLeft = GOLDEN.lifetime;
-      sfx.coin();
-      ui.toast('Er hangt een gouden appel in de boomgaard! Tik erop voor een bonus.', glyph('gold'));
     }
   }
 
   world.update(dt);
   ui.update(t);
-  requestAnimationFrame(frame);
 }
 
 requestAnimationFrame((t) => {

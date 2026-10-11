@@ -249,13 +249,13 @@ export class World {
     window.addEventListener('resize', () => this.resize());
   }
 
-  // Hoog: scherpe beelden (tot 2x pixeldichtheid) met zachte schaduwen.
-  // Laag: lagere resolutie en geen schaduwen; veel lichter voor oudere telefoons.
+  // Hoog: scherpe beelden (tot 3x pixeldichtheid) met zachte schaduwen.
+  // Zuinig: tot 1,5x pixeldichtheid, geen schaduwen en 30 beelden per seconde (zie main.js).
   setQuality(q) {
     this.quality = q;
     const high = q === 'high';
     const dpr = window.devicePixelRatio || 1;
-    this.renderer.setPixelRatio(high ? Math.min(dpr, 3) : Math.min(dpr, 1) * 0.8);
+    this.renderer.setPixelRatio(high ? Math.min(dpr, 3) : Math.min(dpr, 1.5));
     this.sun.castShadow = high;
     if (high && this.sun.shadow.mapSize.x !== 2048) {
       this.sun.shadow.mapSize.set(2048, 2048);

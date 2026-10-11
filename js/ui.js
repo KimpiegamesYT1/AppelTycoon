@@ -496,8 +496,8 @@ export class UI {
         const html = `
           <div class="list-row"><span class="li-text"><b>Muziek</b><small>Factory Flow</small></span><button class="btn small ${s.settings.music ? 'green' : ''}" data-action="music">${s.settings.music ? 'Aan' : 'Uit'}</button></div>
           <div class="list-row"><span class="li-text"><b>Geluidseffecten</b></span><button class="btn small ${s.settings.sound ? 'green' : ''}" data-action="sound">${s.settings.sound ? 'Aan' : 'Uit'}</button></div>
-          <div class="list-row"><span class="li-text"><b>Graphics</b><small>Laag: geen schaduwen, lagere resolutie</small></span>
-            <div class="amounts"><button class="amt ${s.settings.quality === 'high' ? 'on' : ''}" data-action="quality" data-v="high">Hoog</button><button class="amt ${s.settings.quality !== 'high' ? 'on' : ''}" data-action="quality" data-v="low">Laag</button></div></div>
+          <div class="list-row"><span class="li-text"><b>Graphics</b><small>Zuinig: geen schaduwen, 30 fps</small></span>
+            <div class="amounts"><button class="amt ${s.settings.quality === 'high' ? 'on' : ''}" data-action="quality" data-v="high">Hoog</button><button class="amt ${s.settings.quality !== 'high' ? 'on' : ''}" data-action="quality" data-v="low">Zuinig</button></div></div>
           <div class="stats">
             <div class="row"><span>Speeltijd</span><b>${duration(s.playTime)}</b></div>
             <div class="row"><span>Totaal verdiend</span><b>${money(s.totalEarned)}</b></div>
@@ -715,7 +715,7 @@ export class UI {
         const out = p.x < m || p.x > window.innerWidth - m || p.y < 130 || p.y > window.innerHeight - 100;
         p.x = Math.min(window.innerWidth - m, Math.max(m, p.x));
         p.y = Math.min(window.innerHeight - 100, Math.max(130, p.y));
-        p.visible = true;
+        p.visible = out;
         el.classList.toggle('edge', out);
       }
       const hide = !p.visible || (zoomedOut && a.st.kind === 'line');
@@ -764,7 +764,7 @@ export class UI {
     } else if (st.kind === 'dock') {
       html = `<span class="lb-icon">${glyph('sales')}</span><span>Nieuwe laadplek<br><b>level ${st.level}</b></span>`;
     } else if (st.kind === 'golden') {
-      html = `<span class="lb-icon">${glyph('gold')}</span><span>Gouden appel!</span>`;
+      html = `<span class="lb-icon">${glyph('gold')}</span>`;
     }
     if (el._html !== html) { el.innerHTML = html; el._html = html; }
     el.classList.toggle('can', can);
