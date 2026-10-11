@@ -287,7 +287,10 @@ export class UI {
           <div class="stats">${rows.map((r) => `<div class="row"><span>${r[0]}</span><b>${r[1]}</b>${r[2] ? `<em>→ ${r[2]}</em>` : ''}</div>`).join('')}</div>
           ${extra}
           <div class="buy-row">${this.amountToggle()}${this.buyButton(st.kind, st.i || 0)}</div>`;
-        const badge = st.kind === 'line' ? `${money(LINES[st.i].value * pm)}<small>per stuk</small>` : '';
+        // prijs per stuk; een upgrade maakt het product ook duurder
+        const badge = st.kind === 'line'
+          ? `${money(E.lineValue(st.i, level) * pm)}<small>per stuk · → ${money(E.lineValue(st.i, level + q.count) * pm)}</small>`
+          : '';
         return { title, sub, html, badge };
       },
     };

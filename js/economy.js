@@ -1,6 +1,6 @@
 // Pure spellogica zonder DOM of 3D, zodat de balans-simulatie dezelfde code gebruikt.
 import {
-  MILESTONES, ORCHARD, SALES, LINES, LINE_GROWTH, TIERS, START_MONEY,
+  MILESTONES, ORCHARD, SALES, LINES, LINE_GROWTH, LINE_PRICE_STEP, TIERS, START_MONEY,
   RESEARCH, INVESTOR_BONUS, INVESTOR_BASE, DOCK_LEVELS, PICKER_LEVELS, TRUCK,
 } from './config.js';
 
@@ -75,6 +75,12 @@ export function investorMult(state) {
 
 export function orchardRate(state, level = state.orchard) {
   return ORCHARD.baseRate * level * milestoneMult(level) * tierOrchardMult(state) * researchMult(state, 'orchard');
+}
+
+// Waarde van één product (zonder prijsbonussen van onderzoek/uitbreidingen/investeerders).
+// Stijgt met het level van de lijn: betere kwaliteit, betere verpakking.
+export function lineValue(i, level) {
+  return LINES[i].value * (1 + LINE_PRICE_STEP * (Math.max(1, level) - 1));
 }
 
 export function lineRate(state, i, level = state.lines[i]) {
@@ -164,8 +170,9 @@ export function computeProduction(state, now = 0, steady = false) {
     const l = LINES[i];
     const rate = Math.min(max, applesLeft / l.apples);
     applesLeft -= rate * l.apples;
-    potential += rate * l.value;
-    want.push({ i, max, rate, status: rate < max * 0.98 ? 'apples' : 'ok' });
+    const v = lineValue(i, state.lines[i]);
+    potential += rate * v;
+    want.push({ i, max, rate, v, status: rate < max * 0.98 ? 'apples' : 'ok' });
   }
   // 2) kan het magazijn/vervoer het niet aan, dan krijgen alle lijnen naar verhouding minder ruimte
   const f = potential > outLeft ? outLeft / potential : 1;
@@ -173,8 +180,8 @@ export function computeProduction(state, now = 0, steady = false) {
     const l = LINES[w.i];
     const rate = w.rate * f;
     used += rate * l.apples;
-    output += rate * l.value;
-    lines[w.i] = { rate, max: w.max, potential: w.rate, efficiency: rate / w.max, income: rate * l.value * pm, status: f < 0.999 ? 'full' : w.status };
+    output += rate * w.v;
+    lines[w.i] = { rate, max: w.max, potential: w.rate, efficiency: rate / w.max, income: rate * w.v * pm, status: f < 0.999 ? 'full' : w.status };
   }
   const sold = steady ? Math.min(output, transport) : (state.goods > 1 ? transport : Math.min(output, transport));
   const picking = binFull ? Math.min(supply, used) : supply;
@@ -341,6 +348,7 @@ export function tick(state, dt, now = 0, events = null) {
   const pm = priceMult(state);
   const cap = truckCapacity(state);
   const rates = LINES.map((_, i) => lineRate(state, i));
+  const vals = LINES.map((_, i) => lineValue(i, state.lines[i]));
   const L = TRUCK.loadTime;
   let left = dt;
   let earned = 0;
@@ -358,13 +366,13 @@ export function tick(state, dt, now = 0, events = null) {
       const l = LINES[i];
       const n = Math.max(0, Math.min(rates[i] * h, applesLeft / l.apples));
       applesLeft -= n * l.apples;
-      value += n * l.value;
+      value += n * vals[i];
       take.push([i, n]);
     }
     const f = value > space ? Math.max(0, space) / value : 1;
     for (const [i, n] of take) {
       state.apples -= n * f * LINES[i].apples;
-      state.goods += n * f * LINES[i].value;
+      state.goods += n * f * vals[i];
     }
     state.apples = Math.max(0, state.apples);
     state.trucks.forEach((tr, k) => {
