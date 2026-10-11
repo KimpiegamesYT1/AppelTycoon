@@ -47,7 +47,7 @@ delete state.migrated;
 // standaard scherp; alleen als de speler zelf Laag kiest blijft dat bewaard
 if (state.settings.quality === 'auto' || !state.settings.qualityChosen) state.settings.quality = 'high';
 setSound(state.settings.sound);
-initMusic('assets/audio/factory-flow.mp3', state.settings.music);
+initMusic('assets/audio/factory-flow.mp3?v=' + (window.APP_VERSION || ''), state.settings.music);
 
 const game = {
   state,

@@ -13,6 +13,8 @@ python3 -m http.server 8080
 
 Online zetten met GitHub Pages: **Settings → Pages → Deploy from a branch**, kies de branch en map `/ (root)`.
 
+**Cache-buster:** draai na het aanpassen van code `node tools/bump-version.mjs` (of `npm run version`) vóór je commit. Dat zet een versie (hash van de inhoud) achter alle bestanden in `index.html`, zodat spelers na herladen meteen de nieuwe versie krijgen.
+
 ## Gameplay
 
 Je begint met een schuurtje, een paar appelbomen en één vrachtwagen. Een korte tutorial laat je de eerste machine bouwen en legt de keten uit:
