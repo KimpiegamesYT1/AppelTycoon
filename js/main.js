@@ -231,7 +231,9 @@ function frame(t) {
     // geld alleen bij vertrek van een vrachtwagen
     const sales = [];
     E.tick(state, gap, now, sales);
-    for (const ev of sales) { ui.truckSale(world, ev.truck, ev.amount); sfx.coin(); }
+    for (const ev of sales) ui.truckSale(world, ev.truck, ev.amount);
+    // zacht geluidje per vertrekkende vrachtwagen, hooguit twee keer per seconde
+    if (sales.length && t - (game.lastSaleSound || -1e9) > 500) { sfx.sale(); game.lastSaleSound = t; }
   }
 
   game.prod = E.computeProduction(state, now);
