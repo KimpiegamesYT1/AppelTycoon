@@ -159,6 +159,7 @@ export class World {
     this.goal = null;          // vloeiend naar een punt bewegen
     this.viewSize = 34;
     this.velocity = new THREE.Vector2();
+    this.dragging = false;
 
     const hemi = new THREE.HemisphereLight(0xffffff, 0x7fb069, 1.25);
     this.scene.add(hemi);
@@ -705,7 +706,11 @@ export class World {
   // ---------- Effecten ----------
 
   bounce(obj) {
-    this.bounces.push({ obj, t: 0, base: obj.scale.clone() });
+    // altijd terug naar de oorspronkelijke schaal, ook als er snel achter elkaar gekocht wordt
+    if (!obj.userData.baseScale) obj.userData.baseScale = obj.scale.clone();
+    const running = this.bounces.find((b) => b.obj === obj);
+    if (running) { running.t = 0; return; }
+    this.bounces.push({ obj, t: 0, base: obj.userData.baseScale });
   }
 
   bounceStation(st) {
@@ -829,6 +834,7 @@ export class World {
     c.addEventListener('pointerdown', (e) => {
       c.setPointerCapture(e.pointerId);
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this.dragging = true;
       if (pointers.size === 1) { downPos = { x: e.clientX, y: e.clientY }; moved = 0; this.velocity.set(0, 0); this.goal = null; }
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
@@ -847,9 +853,11 @@ export class World {
         moved += Math.abs(dx) + Math.abs(dy);
         if (moved > 6) {
           this.pan(dx, dy);
+          // snelheid in pixels per seconde, afgevlakt, voor het uitglijden na loslaten
           const now = performance.now();
-          const dt = Math.max(1, now - lastT);
-          this.velocity.set(dx / dt * 16, dy / dt * 16);
+          const dt = Math.max(8, now - lastT);
+          this.velocity.lerp(new THREE.Vector2((dx / dt) * 1000, (dy / dt) * 1000), 0.35);
+          if (this.velocity.length() > 2500) this.velocity.setLength(2500);
           lastT = now;
         }
       } else if (pointers.size === 2) {
@@ -867,14 +875,19 @@ export class World {
         const st = this.pick(e.clientX, e.clientY);
         this.onTap(st);
       }
-      if (pointers.size === 0 && performance.now() - lastT > 80) this.velocity.set(0, 0);
+      if (pointers.size === 0) {
+        this.dragging = false;
+        if (performance.now() - lastT > 60) this.velocity.set(0, 0);
+      }
       if (pointers.size < 2) pinchDist = 0;
     };
     c.addEventListener('pointerup', up);
     c.addEventListener('pointercancel', up);
     c.addEventListener('wheel', (e) => {
       e.preventDefault();
-      this.zoom(e.deltaY > 0 ? 1.1 : 1 / 1.1);
+      // muiswiel én trackpad: zoom evenredig met de scrollafstand
+      const delta = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1);
+      this.zoom(Math.exp(Math.max(-120, Math.min(120, delta)) * 0.0012));
     }, { passive: false });
   }
 
@@ -919,9 +932,9 @@ export class World {
     if (this.goal) {
       this.target.lerp(this.goal, Math.min(1, dt * 5));
       if (this.target.distanceTo(this.goal) < 0.05) this.goal = null;
-    } else if (this.velocity.lengthSq() > 0.01) {
-      this.pan(this.velocity.x, this.velocity.y);
-      this.velocity.multiplyScalar(Math.pow(0.04, dt));
+    } else if (!this.dragging && this.velocity.lengthSq() > 25) {
+      this.pan(this.velocity.x * dt, this.velocity.y * dt);
+      this.velocity.multiplyScalar(Math.pow(0.003, dt));
     }
     this.updateCamera();
 

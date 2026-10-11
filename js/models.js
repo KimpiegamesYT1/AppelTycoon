@@ -134,11 +134,12 @@ export function treeGeometry(variant) {
   b.ico(0.95, leaf, 0, 1.75, 0, { sy: 0.9 });
   b.ico(0.65, leaf, 0.45, 2.25, -0.2, { sy: 0.9 });
   b.ico(0.55, leaf, -0.45, 2.0, 0.35);
+  // appels op het oppervlak van de grote bladerbol, iets erin gedrukt
   for (let i = 0; i < 6; i++) {
     const a = r() * Math.PI * 2;
-    const y = 1.4 + r() * 1.0;
-    const rad = 0.9 - Math.abs(y - 1.8) * 0.35;
-    b.ico(0.13, C.apple, Math.cos(a) * rad, y, Math.sin(a) * rad);
+    const h = -0.5 + r() * 1.0;
+    const c = Math.cos(h);
+    b.ico(0.13, C.apple, Math.cos(a) * c * 0.88, 1.75 + Math.sin(h) * 0.8, Math.sin(a) * c * 0.88);
   }
   return b.geometry();
 }
