@@ -82,9 +82,11 @@ class Belt {
     this.gap = gap;
     this.speed = speed;
     this.items = [];          // gesorteerd: items[0] ligt het verst
+    this.holds = [];          // posities waar een ander product wil invoegen (ritsen)
   }
   canInsert(d) {
-    for (const it of this.items) if (Math.abs(it.d - d) < this.gap) return false;
+    // kleine marge zodat afrondingsfouten geen eeuwige wachtrij veroorzaken
+    for (const it of this.items) if (Math.abs(it.d - d) < this.gap - 1e-3) return false;
     return true;
   }
   insert(item) {
@@ -105,7 +107,10 @@ class Belt {
     let limit = this.total;
     for (let k = 0; k < this.items.length; k++) {
       const it = this.items[k];
-      const nd = Math.min(it.d + this.speed * dt, limit);
+      let lim = limit;
+      // wacht er verderop iemand om in te voegen, dan stoppen we vlak ervoor en laten hem voor
+      for (const h of this.holds) if (it.d <= h - this.gap + 1e-6) lim = Math.min(lim, h - this.gap - 0.01);
+      const nd = Math.min(it.d + this.speed * dt, lim);
       if (k === 0 && nd >= this.total - 1e-4) {
         it.d = this.total;
         if (onEnd && onEnd(it)) { this.items.splice(0, 1); k--; limit = this.total; continue; }
@@ -473,7 +478,7 @@ export class World {
     colOut.position.set(21.95, 0.25, FEED_Z);
     g.add(colOut);
     this.feeder = new Belt([[feedStart + 0.1, FEED_Z], [0, FEED_Z], [0, zLast]], 0.42);
-    this.collector = new Belt([[21.5, zLast], [21.5, FEED_Z], [DEPOT_IN, FEED_Z]], 0.6, 3.4);
+    this.collector = new Belt([[21.5, zLast], [21.5, FEED_Z], [DEPOT_IN, FEED_Z]], 0.56, 4.8);
     this.feedJoin = (i) => (0 - (feedStart + 0.1)) + (lineZ(i) - FEED_Z);
     this.colJoin = (i) => zLast - lineZ(i);
     this.feedTimer = 0;
@@ -557,8 +562,8 @@ export class World {
     for (let lvl = 0; lvl < 3; lvl++) {
       for (const [x, z, bays] of racks) {
         for (let bay = 0; bay < bays; bay++) {
-          const c = M.crateStack(31 + bay + lvl * 7, 1);
-          c.position.set(x + 0.13 + bay * 1.1, 0.3 + 0.12 + lvl * 0.85, z - 0.42);
+          const c = M.shelfCrate(bay + lvl * 3);
+          c.position.set(x + 0.55 + bay * 1.1, 0.3 + 0.11 + lvl * 0.85, z);
           c.visible = false;
           g.add(c);
           this.storeCrates.push(c);
@@ -831,7 +836,8 @@ export class World {
         sum += v;
         return v;
       });
-      const scale = sum > 5 ? 5 / sum : 1;
+      // de verzamelband houdt zo ruim de helft vrij, zodat elke lijn kan invoegen
+      const scale = sum > 3.6 ? 3.6 / sum : 1;
       let feed = 0;
       LINES.forEach((l, i) => {
         const o = this.lineObjs[i];
@@ -1244,6 +1250,7 @@ export class World {
       this.feedTimer -= 1;
     }
     this.feeder.update(dt, () => false);
+    const holds = [];
     this.lineObjs.forEach((o, i) => {
       if (!o) return;
       const f = this.lineFlows[i];
@@ -1269,17 +1276,22 @@ export class World {
         }
       }
       o.activity = running ? o.base : 0;
+      let waiting = false;
       f.output.update(dt, (it) => {
         const d = this.colJoin(i);
-        if (!this.collector.canInsert(d)) return false;
+        if (!this.collector.canInsert(d)) { waiting = true; return false; }
         it.d = d;
         this.collector.insert(it);
         return true;
       });
+      // ritsen: wacht een product te lang op een gat, dan houdt de verzamelband ruimte vrij
+      o.mergeWait = waiting ? (o.mergeWait || 0) + dt : 0;
+      if (o.mergeWait > 0.2 && !this.storeFull) holds.push(this.colJoin(i));
       f.input.draw();
       f.output.draw();
     });
     // aan het eind van de verzamelband gaat alles het magazijn in, behalve als dat vol is
+    this.collector.holds = holds;
     this.collector.update(dt, () => !this.storeFull);
     this.feeder.draw();
     this.collector.draw();

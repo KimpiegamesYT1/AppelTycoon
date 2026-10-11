@@ -395,6 +395,18 @@ export function crateStack(seed = 1, n = 4) {
   return b.mesh();
 }
 
+// Doos voor in de stelling: vult een vak zodat je goed ziet hoe vol het magazijn is.
+export function shelfCrate(seed = 0) {
+  const b = new Builder();
+  const col = [0xe0ac6a, 0xd29a5a, 0xe8bb7a][seed % 3];
+  b.box(0.92, 0.6, 0.78, col, 0, 0, 0);
+  b.box(0.94, 0.1, 0.8, 0xa86f3a, 0, 0.18, 0);
+  b.ico(0.13, C.apple, -0.2, 0.62, 0.08);
+  b.ico(0.13, C.apple, 0.12, 0.63, -0.1);
+  b.ico(0.12, 0x8ccf3f, 0.25, 0.62, 0.15);
+  return b.mesh();
+}
+
 export function pallet(color = C.wood) {
   const b = new Builder();
   b.box(1.2, 0.15, 1.2, C.woodDark, 0, 0, 0);
