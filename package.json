@@ -1,0 +1,9 @@
+{
+  "name": "appeltycoon",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sim": "node tools/balance-sim.mjs 120",
+    "serve": "python3 -m http.server 8080"
+  }
+}

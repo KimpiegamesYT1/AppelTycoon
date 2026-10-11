@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#7cc7f0">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Appel Tycoon: bouw je eigen 3D appelfabriek, van klein schuurtje tot Appelplaneet.">
+  <title>Appel Tycoon</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <div id="labels"></div>
+  <div id="fx"></div>
+
+  <header id="hud">
+    <div class="money-card">
+      <div class="coin">€</div>
+      <div>
+        <div id="money" class="money">€0</div>
+        <div id="income" class="income">+€0/s</div>
+      </div>
+    </div>
+    <div class="hud-right">
+      <button id="btn-investors" class="chip" aria-label="Investeerders"><span>⭐</span><b id="inv-count">0</b></button>
+      <button id="btn-settings" class="round" aria-label="Instellingen">⚙️</button>
+    </div>
+  </header>
+
+  <div id="goal" class="goal">
+    <div class="goal-icon">🎯</div>
+    <div class="goal-body">
+      <div id="goal-text"></div>
+      <div class="bar"><i id="goal-bar"></i></div>
+    </div>
+    <button id="goal-claim" class="btn green small hidden">Claim</button>
+  </div>
+
+  <div id="boost-banner" class="boost-banner hidden">⚡ TURBO x2 · <span id="boost-time"></span></div>
+
+  <nav id="dock">
+    <button data-open="stations"><span>🏭</span><small>Fabriek</small></button>
+    <button data-open="research"><span>🔬</span><small>Onderzoek</small><i class="badge hidden"></i></button>
+    <button data-open="expand"><span>🏗️</span><small>Uitbreiden</small><i class="badge hidden"></i></button>
+    <button id="btn-boost" class="boost-ready"><span>⚡</span><small id="boost-label">Turbo</small></button>
+  </nav>
+
+  <section id="sheet" class="sheet hidden"></section>
+  <div id="modal" class="modal hidden"><div class="modal-card" id="modal-card"></div></div>
+  <div id="toasts"></div>
+
+  <div id="loading">
+    <div class="logo">🍎</div>
+    <div>Appel Tycoon</div>
+    <small>fabriek wordt gebouwd…</small>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
