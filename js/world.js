@@ -255,7 +255,7 @@ export class World {
     this.quality = q;
     const high = q === 'high';
     const dpr = window.devicePixelRatio || 1;
-    this.renderer.setPixelRatio(high ? Math.min(dpr, 2) : Math.min(dpr, 1) * 0.8);
+    this.renderer.setPixelRatio(high ? Math.min(dpr, 3) : Math.min(dpr, 1) * 0.8);
     this.sun.castShadow = high;
     if (high && this.sun.shadow.mapSize.x !== 2048) {
       this.sun.shadow.mapSize.set(2048, 2048);

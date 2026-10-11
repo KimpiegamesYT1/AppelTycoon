@@ -43,7 +43,17 @@ export class UI {
     this.el.tutBtn = $('#tut-btn');
     this.el.tutBtn.addEventListener('click', () => this.advanceTutorial());
     this.tutShown = -1;
-    this.el.goal.addEventListener('click', (e) => { if (!this.el.goalClaim.contains(e.target)) this.goalHint(); });
+    this.el.goal.addEventListener('click', (e) => {
+      if (this.el.goalClaim.contains(e.target)) { this.el.goal.classList.remove('open'); return; }
+      // op mobiel is het doel een knopje; eerste tik klapt het open
+      if (window.matchMedia('(max-width: 760px)').matches && !this.el.goal.classList.contains('open')) {
+        this.el.goal.classList.add('open');
+        return;
+      }
+      this.el.goal.classList.remove('open');
+      this.goalHint();
+    });
+    document.addEventListener('pointerdown', (e) => { if (!this.el.goal.contains(e.target)) this.el.goal.classList.remove('open'); });
 
     // klikken in panelen via data-action
     const onAction = (e) => {
@@ -138,6 +148,7 @@ export class UI {
       <div class="sheet-head">
         <div class="sheet-icon">${this.panel.icon}</div>
         <div class="sheet-title"><h2></h2><div class="sheet-sub"></div></div>
+        <div class="sheet-badge hidden"></div>
         <button class="round close" data-action="close" aria-label="Sluiten">${icon('close')}</button>
       </div>
       <div class="sheet-body"></div>`;
@@ -169,6 +180,9 @@ export class UI {
     const r = this.panel.render();
     if (head.textContent !== r.title) head.textContent = r.title;
     if (sub.innerHTML !== (r.sub || '')) sub.innerHTML = r.sub || '';
+    const badge = this.el.sheet.querySelector('.sheet-badge');
+    if (badge.innerHTML !== (r.badge || '')) badge.innerHTML = r.badge || '';
+    badge.classList.toggle('hidden', !r.badge);
     if (r.html !== this.lastHtml) {
       body.innerHTML = r.html;
       this.lastHtml = r.html;
@@ -254,15 +268,13 @@ export class UI {
           title = l.name;
           sub += ` · ${l.machine}`;
           const maxNext = E.lineRate(after, st.i);
-          rows.push(['Productie nu', `${fmt(lp.rate)}/s`]);
-          rows.push(['Capaciteit', `${fmt(lp.max)}/s`, fmt(maxNext) + '/s']);
+          // productie en capaciteit in één regel: '1,2 van 1,6/s' als hij niet op volle kracht draait
+          const prodTxt = lp.rate >= lp.max * 0.98 ? `${fmt(lp.max)}/s` : `${fmt(lp.rate)} <small>van</small> ${fmt(lp.max)}/s`;
+          rows.push(['Productie', prodTxt, fmt(maxNext) + '/s']);
           // de pijl toont wat de upgrade echt extra oplevert voor je hele fabriek (vervoer en appels meegerekend)
           const extraIncome = Math.max(0, ssNext.income - ss.income);
           rows.push(['Opbrengst', money(ss.lines[st.i].income * 60) + '/min', '+' + money(extraIncome * 60) + '/min']);
-          rows.push(['Prijs per stuk', money(l.value * pm)]);
           rows.push(['Appelverbruik', `${fmt(lp.rate * l.apples)}/s <small>(${l.apples} per stuk)</small>`]);
-          const batch = this.game.world.beltBatch(st.i);
-          if (batch >= 1.5) rows.push(['Op de band', `1 bakje = ${fmt(batch)} stuks`]);
           const free = Math.max(0, (ss.transport - ss.potential) * pm * 60);
           const nextLine = ssNext.lines[st.i];
           if (lp.status === 'full') extra = warn('Magazijn vol: deze lijn staat stil tot de vrachtwagens het magazijn leeghalen.', goTo('sales', 'Vrachtwagens'));
@@ -275,7 +287,8 @@ export class UI {
           <div class="stats">${rows.map((r) => `<div class="row"><span>${r[0]}</span><b>${r[1]}</b>${r[2] ? `<em>→ ${r[2]}</em>` : ''}</div>`).join('')}</div>
           ${extra}
           <div class="buy-row">${this.amountToggle()}${this.buyButton(st.kind, st.i || 0)}</div>`;
-        return { title, sub, html };
+        const badge = st.kind === 'line' ? `${money(LINES[st.i].value * pm)}<small>per stuk</small>` : '';
+        return { title, sub, html, badge };
       },
     };
   }
@@ -643,6 +656,7 @@ export class UI {
     const done = p.cur >= p.max;
     this.el.goalText.innerHTML = `${g.text} <small>${g.type === 'income' ? '' : `(${fmt(p.cur)}/${fmt(p.max)})`}</small>`;
     this.el.goalBar.style.width = Math.round((p.cur / p.max) * 100) + '%';
+    this.el.goal.style.setProperty('--p', Math.round((p.cur / p.max) * 100));
     this.el.goalClaim.classList.toggle('hidden', !done);
     const label = `${icon('gift')} ${money(goalReward(g, income))}`;
     if (this.el.goalClaim.innerHTML !== label) this.el.goalClaim.innerHTML = label;

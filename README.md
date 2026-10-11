@@ -48,7 +48,7 @@ Richtwaarden voor de bot (een echte speler doet er langer over): Appelsap na ~4 
 - [Three.js](https://threejs.org) r170 (meegeleverd in `vendor/`, MIT-licentie)
 - Low-poly modellen worden uit simpele vormen opgebouwd en samengevoegd tot één mesh met vertex-kleuren; producten op de banden gebruiken `InstancedMesh`.
 - Voortgang wordt in `localStorage` bewaard.
-- Achtergrondmuziek: `assets/audio/factory-flow.mp3` ("Factory Flow"). Start na de eerste tik (browserregel) en kan uit in de instellingen.
+- Achtergrondmuziek: `assets/audio/factory-flow.mp3` ("Factory Flow", mono 32 kHz). Speelt via Web Audio zodat telefoons geen mediaspeler tonen; start na de eerste tik en kan uit in de instellingen.
 - Iconen zijn eigen inline SVG's (`js/icons.js`).
 
 ```

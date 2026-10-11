@@ -260,6 +260,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   font-size: 28px;
 }
 .sheet-title { flex: 1; min-width: 0; }
+.sheet-badge { display: flex; flex-direction: column; align-items: flex-end; font-weight: 700; font-size: 18px; color: var(--green-d); line-height: 1.05; padding-right: 2px; }
+.sheet-badge small { font-size: 11px; color: var(--ink-soft); font-weight: 600; }
 .sheet-title h2 { margin: 0; font-size: 21px; font-weight: 700; }
 .sheet-sub { color: var(--ink-soft); font-size: 14px; }
 .sheet-sub b { color: var(--ink); }
@@ -586,3 +588,24 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .weak-box .gl { font-size: 26px; }
 .weak-box div { flex: 1; }
 
+
+/* mobiel: het doel is een rond knopje met voortgangsring; tikken klapt het open */
+@media (max-width: 760px) {
+  .hud-center { order: 2; flex: 0 0 auto; flex-basis: auto; margin: 0 0 0 auto; }
+  .hud-right { order: 3; }
+  .hud-center:has(#tutorial:not(.hidden)) { order: 4; flex-basis: 100%; margin: 0; }
+  .goal:not(.open) {
+    width: 46px; height: 46px; min-height: 46px; padding: 0; border-radius: 50%;
+    justify-content: center; position: relative;
+    background: conic-gradient(var(--green) calc(var(--p, 0) * 1%), var(--panel) 0);
+  }
+  .goal:not(.open)::before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: var(--panel); }
+  .goal:not(.open) .goal-icon { position: relative; font-size: 22px; }
+  .goal:not(.open) .goal-body, .goal:not(.open) #goal-claim { display: none; }
+  .goal.done:not(.open)::after {
+    content: '!'; position: absolute; top: -4px; right: -4px; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--green); color: #fff; font-size: 13px; font-weight: 700; display: grid; place-items: center;
+  }
+  .goal.open { position: fixed; left: 10px; right: 10px; top: calc(66px + var(--safe-t)); max-width: none; z-index: 15; animation: pop 0.2s ease-out; }
+  #toasts { top: calc(70px + var(--safe-t)); }
+}

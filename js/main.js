@@ -44,9 +44,8 @@ const loaded = load();
 const state = loaded || E.newState();
 const firstVisit = !loaded || state.migrated;
 delete state.migrated;
-if (state.settings.quality === 'auto') {
-  state.settings.quality = window.matchMedia('(pointer: coarse)').matches ? 'low' : 'high';
-}
+// standaard scherp; alleen als de speler zelf Laag kiest blijft dat bewaard
+if (state.settings.quality === 'auto' || !state.settings.qualityChosen) state.settings.quality = 'high';
 setSound(state.settings.sound);
 initMusic('assets/audio/factory-flow.mp3', state.settings.music);
 
@@ -174,6 +173,7 @@ const game = {
 
   setQuality(q) {
     state.settings.quality = q;
+    state.settings.qualityChosen = true;
     world.setQuality(q);
   },
 

@@ -42,34 +42,71 @@ export const sfx = {
 };
 
 // ---------- Achtergrondmuziek ----------
+// Via Web Audio in plaats van een <audio>-element: zo toont een telefoon geen mediaspeler-melding.
 // Browsers staan pas geluid toe na een tik of toets, dus we starten bij de eerste interactie.
-let music = null;
+// Het bestand is mono 32 kHz; een eigen AudioContext op 32 kHz houdt het geheugen klein (~25 MB).
+let mctx = null;
+let mgain = null;
+let mbuffer = null;
+let msource = null;
 let musicOn = false;
 let unlocked = false;
+let loading = null;
+let musicUrl = '';
+
+function startMusic() {
+  if (!musicOn || !unlocked || document.hidden) return;
+  if (!mctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try { mctx = new AC({ sampleRate: 32000 }); } catch { mctx = new AC(); }
+    mgain = mctx.createGain();
+    mgain.gain.value = 0.35;
+    mgain.connect(mctx.destination);
+  }
+  if (mctx.state === 'suspended') mctx.resume();
+  if (msource) return;
+  if (!mbuffer) {
+    if (!loading) {
+      loading = fetch(musicUrl)
+        .then((r) => r.arrayBuffer())
+        .then((data) => new Promise((ok, fail) => mctx.decodeAudioData(data, ok, fail)))
+        .then((buf) => { mbuffer = buf; startMusic(); })
+        .catch((e) => { console.warn('Muziek laden mislukt', e); });
+    }
+    return;
+  }
+  msource = mctx.createBufferSource();
+  msource.buffer = mbuffer;
+  msource.loop = true;
+  msource.connect(mgain);
+  msource.start();
+}
+
+function stopMusic() {
+  if (msource) { try { msource.stop(); } catch { /* al gestopt */ } msource.disconnect(); msource = null; }
+  if (mctx && mctx.state === 'running') mctx.suspend();
+}
 
 export function initMusic(url, on) {
   musicOn = on;
-  music = new Audio(url);
-  music.loop = true;
-  music.volume = 0.35;
-  music.preload = 'auto';
+  musicUrl = url;
   const unlock = () => {
     unlocked = true;
-    if (musicOn && !document.hidden) music.play().catch(() => {});
+    startMusic();
     window.removeEventListener('pointerdown', unlock);
     window.removeEventListener('keydown', unlock);
   };
   window.addEventListener('pointerdown', unlock);
   window.addEventListener('keydown', unlock);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) music.pause();
-    else if (musicOn && unlocked) music.play().catch(() => {});
+    if (document.hidden) { if (mctx && mctx.state === 'running') mctx.suspend(); }
+    else if (musicOn && unlocked) { if (mctx) mctx.resume(); startMusic(); }
   });
 }
 
 export function setMusic(on) {
   musicOn = on;
-  if (!music) return;
-  if (on && unlocked) music.play().catch(() => {});
-  else music.pause();
+  if (on) startMusic();
+  else stopMusic();
 }
