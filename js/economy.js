@@ -1,15 +1,15 @@
 // Pure spellogica zonder DOM of 3D, zodat de balans-simulatie dezelfde code gebruikt.
 import {
-  MILESTONES, RAW_APPLE_PRICE, ORCHARD, SALES, LINES, LINE_GROWTH, TIERS,
+  MILESTONES, ORCHARD, SALES, LINES, LINE_GROWTH, TIERS, START_MONEY,
   RESEARCH, INVESTOR_BONUS, INVESTOR_BASE, BOOST,
 } from './config.js';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export function newState() {
   return {
     version: SAVE_VERSION,
-    money: 0,
+    money: START_MONEY,
     runEarned: 0,        // verdiend sinds laatste investeerdersronde
     totalEarned: 0,      // verdiend over alle rondes
     investors: 0,
@@ -17,11 +17,14 @@ export function newState() {
     tier: 0,
     orchard: 1,
     sales: 1,
-    lines: LINES.map((_, i) => (i === 0 ? 1 : 0)),   // 0 = op slot
+    lines: LINES.map(() => 0),   // 0 = nog niet gebouwd
+    apples: 0,           // appels in de appelbak
+    goods: 0,            // goederen in het magazijn (basiswaarde)
     research: {},
     boostUntil: 0,
     boostReadyAt: 0,
     goal: 0,
+    tutorial: 0,
     stats: { boosts: 0, golden: 0, upgrades: 0 },
     playTime: 0,
     lastTick: Date.now(),
@@ -83,40 +86,74 @@ export function lineRate(state, i, level = state.lines[i]) {
   return LINES[i].rate * level * milestoneMult(level) * researchMult(state, LINES[i].id);
 }
 
-export function salesMult(state, level = state.sales) {
-  return 1 + SALES.perLevel * (level - 1);
+// Hoeveel goederen (basiswaarde per seconde) de vrachtwagens wegbrengen.
+export function transportRate(state, level = state.sales) {
+  return SALES.baseRate * level * SALES.rateGrowth ** (level - 1) * milestoneMult(level) * researchMult(state, 'transport');
 }
 
-export function priceMult(state, now = 0) {
-  return salesMult(state) * researchMult(state, 'all') * tierIncomeMult(state) * investorMult(state)
-    * (isBoosted(state, now) ? BOOST.mult : 1);
+export function binCapacity(state, level = state.orchard) {
+  return Math.max(ORCHARD.binMin, orchardRate(state, level) * ORCHARD.binSeconds);
+}
+
+export function storeCapacity(state, level = state.sales) {
+  return Math.max(SALES.storeMin, transportRate(state, level) * SALES.storeSeconds);
+}
+
+// Prijsvermenigvuldiger: onderzoek, uitbreidingen en investeerders.
+export function priceMult(state) {
+  return researchMult(state, 'all') * tierIncomeMult(state) * investorMult(state);
+}
+
+export function speedMult(state, now = 0) {
+  return isBoosted(state, now) ? BOOST.mult : 1;
 }
 
 // Verdeelt de appels over de lijnen: duurste producten (per appel) eerst.
 const lineOrder = LINES.map((l, i) => i).sort((a, b) => LINES[b].value / LINES[b].apples - LINES[a].value / LINES[a].apples);
 
-export function computeProduction(state, now = 0) {
-  const speed = isBoosted(state, now) ? BOOST.mult : 1;
-  const supply = orchardRate(state) * speed;
-  let left = supply;
-  const lines = LINES.map(() => ({ rate: 0, max: 0, efficiency: 0, income: 0 }));
-  const pm = priceMult(state, now) / (isBoosted(state, now) ? BOOST.mult : 1);
+// Huidige stroom door de keten, rekening houdend met wat er in de appelbak en het magazijn ligt.
+// Per lijn: status 'ok' | 'apples' (te weinig appels) | 'full' (magazijn vol).
+export function computeProduction(state, now = 0, steady = false) {
+  const sp = speedMult(state, now);
+  const supply = orchardRate(state) * sp;
+  const transport = transportRate(state) * sp;
+  const binCap = binCapacity(state);
+  const storeCap = storeCapacity(state);
+  const binFull = !steady && state.apples >= binCap * 0.995;
+  const storeFull = !steady && state.goods >= storeCap * 0.995;
+  // ligt er een voorraad appels, dan kunnen de lijnen op volle snelheid draaien
+  let applesLeft = !steady && state.apples > 1 ? Infinity : supply;
+  // is het magazijn vol, dan kan er alleen zoveel bij als de vrachtwagens weghalen
+  let outLeft = storeFull ? transport : Infinity;
+  const pm = priceMult(state);
+  const lines = LINES.map(() => ({ rate: 0, max: 0, efficiency: 0, income: 0, status: 'off' }));
+  let output = 0;
+  let used = 0;
   for (const i of lineOrder) {
-    const max = lineRate(state, i) * speed;
+    const max = lineRate(state, i) * sp;
     if (max <= 0) continue;
-    const need = max * LINES[i].apples;
-    const got = Math.min(need, left);
-    left -= got;
-    const rate = got / LINES[i].apples;
-    lines[i] = { rate, max, efficiency: rate / max, income: rate * LINES[i].value * pm };
+    const l = LINES[i];
+    let rate = Math.min(max, applesLeft / l.apples);
+    let status = rate < max * 0.98 ? 'apples' : 'ok';
+    if (rate * l.value > outLeft) { rate = outLeft / l.value; status = 'full'; }
+    applesLeft -= rate * l.apples;
+    outLeft -= rate * l.value;
+    used += rate * l.apples;
+    output += rate * l.value;
+    lines[i] = { rate, max, efficiency: rate / max, income: rate * l.value * pm, status };
   }
-  const rawIncome = left * RAW_APPLE_PRICE * investorMult(state);
-  const income = lines.reduce((s, l) => s + l.income, 0) + rawIncome;
-  return { supply, demand: supply - left, spare: left, lines, rawIncome, income };
+  const sold = steady ? Math.min(output, transport) : (state.goods > 1 ? transport : Math.min(output, transport));
+  const picking = binFull ? Math.min(supply, used) : supply;
+  return {
+    supply, picking, used, output, transport, sold, binCap, storeCap, binFull, storeFull, lines,
+    spare: Math.max(0, supply - used),
+    income: sold * pm,
+  };
 }
 
+// Inkomen als alles in evenwicht is (voor offline-inkomen, beloningen en de balans-simulatie).
 export function incomePerSecond(state, now = 0) {
-  return computeProduction(state, now).income;
+  return computeProduction(state, now, true).income;
 }
 
 // ---- Kosten ----
@@ -225,6 +262,7 @@ export function prestige(state) {
   fresh.prestiges = state.prestiges + 1;
   fresh.totalEarned = state.totalEarned;
   fresh.goal = state.goal;
+  fresh.tutorial = state.tutorial;
   fresh.stats = state.stats;
   fresh.playTime = state.playTime;
   fresh.settings = state.settings;
@@ -241,9 +279,35 @@ export function earn(state, amount) {
   state.totalEarned += amount;
 }
 
+// Laat de keten dt seconden lopen, in kleine stapjes zodat appelbak en magazijn kloppen.
 export function tick(state, dt, now = 0) {
-  const inc = incomePerSecond(state, now);
-  earn(state, inc * dt);
+  const sp = speedMult(state, now);
+  const supply = orchardRate(state) * sp;
+  const transport = transportRate(state) * sp;
+  const binCap = binCapacity(state);
+  const storeCap = storeCapacity(state);
+  const pm = priceMult(state);
+  const rates = LINES.map((_, i) => lineRate(state, i) * sp);
+  let left = dt;
+  let earned = 0;
+  while (left > 1e-9) {
+    const h = Math.min(left, 0.2);
+    left -= h;
+    state.apples = Math.min(binCap, state.apples + supply * h);
+    let space = storeCap - state.goods;
+    for (const i of lineOrder) {
+      if (rates[i] <= 0) continue;
+      const l = LINES[i];
+      const n = Math.max(0, Math.min(rates[i] * h, state.apples / l.apples, space / l.value));
+      state.apples -= n * l.apples;
+      state.goods += n * l.value;
+      space -= n * l.value;
+    }
+    const s = Math.min(transport * h, state.goods);
+    state.goods -= s;
+    earned += s * pm;
+  }
+  earn(state, earned);
   state.playTime += dt;
-  return inc;
+  return earned / Math.max(dt, 1e-9);
 }

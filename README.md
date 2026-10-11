@@ -15,27 +15,30 @@ Online zetten met GitHub Pages: **Settings → Pages → Deploy from a branch**,
 
 ## Gameplay
 
-- **Boomgaard** – levert appels. Elke productielijn heeft appels nodig; te weinig appels en je lijnen staan stil. Overtollige appels worden los verkocht.
-- **8 productielijnen** – Verse Appels, Appelsap, Appelmoes, Appelchips, Appeltaart, Appelcider, Appelstroop en Karamelappels. Duurdere producten leveren meer op per appel en krijgen voorrang.
-- **Verkoop & Marketing** – verhoogt de prijs van alle producten; vrachtwagens rijden af en aan.
-- **Mijlpalen** – op level 25, 50, 100, 150, … verdubbelt de productie van een station.
-- **Uitbreidingen** – 11 fabrieksformaten (Schuurtje → Werkplaats → … → Gigafabriek → Appelcomplex → Appelstad → Appelimperium → Appelplaneet). Elke uitbreiding geeft ruimte voor nieuwe lijnen, extra boomgaard en een inkomensbonus.
-- **Onderzoek** – eenmalige vermenigvuldigers.
-- **Investeerders (prestige)** – verkoop je fabriek en begin opnieuw met +5% inkomen per investeerder.
-- **Turbo**, **gouden appels**, **doelen met beloningen** en **offline-inkomen** (50%, max 3 uur).
+Je begint met een schuurtje, een paar appelbomen en één vrachtwagen. Een korte tutorial laat je de eerste machine bouwen en legt de keten uit:
+
+**boomgaard → appelbak → machines → magazijn → vrachtwagens → geld**
+
+- **Boomgaard** – plukkers vullen de appelbak. Is de bak vol, dan stoppen ze met plukken.
+- **8 productielijnen** – Verse Appels, Appelsap, Appelmoes, Appelchips, Appeltaart, Appelcider, Appelstroop en Karamelappels. Elke machine heeft appels nodig; te weinig appels en hij draait langzamer.
+- **Vrachtwagens** – brengen alles uit het magazijn naar de markt. Kunnen ze het niet bijhouden, dan loopt het magazijn vol en lopen je productielijnen vast.
+- Je moet dus steeds de zwakste schakel upgraden. De labels boven de stations laten zien hoe vol de appelbak en het magazijn zijn, en een uitroepteken als een lijn te weinig appels krijgt (oranje) of vastloopt (rood).
+- **Mijlpalen** – op level 25, 50, 100, … verdubbelt een station.
+- **Uitbreidingen** – 11 fabrieksformaten, van Schuurtje tot Appelplaneet.
+- **Onderzoek**, **investeerders (prestige)**, **Turbo**, **gouden appels**, **doelen** en **offline-inkomen** (50%, max 3 uur).
 
 Bediening: slepen om te bewegen, scrollen/knijpen om te zoomen, tikken op een station of label om te upgraden. Houd de upgradeknop ingedrukt om snel achter elkaar te kopen.
 
 ## Balans
 
-Alle getallen staan in [`js/config.js`](js/config.js). De simulatie in [`tools/balance-sim.mjs`](tools/balance-sim.mjs) speelt het spel met een slimme bot en print wanneer lijnen en uitbreidingen gekocht worden:
+Alle getallen staan in [`js/config.js`](js/config.js). De simulatie in [`tools/balance-sim.mjs`](tools/balance-sim.mjs) speelt het spel met een bot die steeds de beste upgrade koopt (en daarbij de keten in balans houdt):
 
 ```bash
-node tools/balance-sim.mjs 60             # eerste ronde, 60 minuten
-node tools/balance-sim.mjs 240 --prestige # met investeerdersrondes
+node tools/balance-sim.mjs 120             # eerste ronde, 120 minuten
+node tools/balance-sim.mjs 600 --prestige  # met investeerdersrondes
 ```
 
-Richtwaarden voor een eerste ronde: Appelsap na ~45 s, Werkplaats na ~2,5 min, Fabriek na ~4 min, Megafabriek na ~16 min en de eerste investeerders rond 25–30 minuten. Met investeerders gaat elke volgende ronde sneller.
+Richtwaarden voor de bot (een echte speler doet er langer over): Appelsap na ~4 min, Werkplaats ~7 min, Fabriek ~16 min, Grote Fabriek ~35 min, Industriehal ~70 min, eerste investeerdersronde na ruim 2 uur. Met investeerders gaat elke ronde sneller; de Gigafabriek komt na een paar rondes.
 
 ## Techniek
 

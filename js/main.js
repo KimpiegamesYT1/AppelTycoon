@@ -3,6 +3,7 @@ import { World } from './world.js';
 import { UI } from './ui.js';
 import { sfx, setSound, initMusic, setMusic } from './audio.js';
 import { glyph } from './icons.js';
+import { TUTORIAL } from './tutorial.js';
 import { LINES, TIERS, BOOST, GOLDEN, OFFLINE, INVESTOR_BONUS } from './config.js';
 import { goalAt, goalProgress, goalReward } from './goals.js';
 import { money, fmt } from './format.js';
@@ -11,12 +12,18 @@ const SAVE_KEY = 'appeltycoon.save.v1';
 
 function migrate(d) {
   const base = E.newState();
+  // versie 1 had een heel andere economie: begin opnieuw, maar houd de instellingen (muziek weer aan)
+  if (d.version !== E.SAVE_VERSION) {
+    base.settings = { ...base.settings, ...(d.settings || {}), music: true };
+    base.migrated = true;
+    return base;
+  }
   const s = { ...base, ...d };
   s.settings = { ...base.settings, ...(d.settings || {}) };
   s.stats = { ...base.stats, ...(d.stats || {}) };
   s.research = d.research || {};
   s.lines = LINES.map((_, i) => (Array.isArray(d.lines) && Number.isFinite(d.lines[i]) ? d.lines[i] : base.lines[i]));
-  for (const k of ['money', 'runEarned', 'totalEarned', 'investors', 'orchard', 'sales', 'tier']) {
+  for (const k of ['money', 'runEarned', 'totalEarned', 'investors', 'orchard', 'sales', 'tier', 'apples', 'goods', 'tutorial']) {
     if (!Number.isFinite(s[k])) s[k] = base[k];
   }
   return s;
@@ -34,7 +41,8 @@ function load() {
 
 const loaded = load();
 const state = loaded || E.newState();
-const firstVisit = !loaded;
+const firstVisit = !loaded || state.migrated;
+delete state.migrated;
 if (state.settings.quality === 'auto') {
   state.settings.quality = window.matchMedia('(pointer: coarse)').matches ? 'low' : 'high';
 }
@@ -135,6 +143,13 @@ const game = {
   tapStation(st) {
     if (!st) { ui.close(); return; }
     if (st.kind === 'golden') { this.collectGolden(); return; }
+    // een nieuwe lijn bouw je direct door op het prijslabel te tikken
+    if (st.kind === 'unlock' && E.lineUnlockable(state, st.i)) {
+      if (state.money >= LINES[st.i].unlock) { this.unlockLine(st.i); return; }
+      sfx.error();
+      ui.toast(`Nog ${money(LINES[st.i].unlock - state.money)} nodig voor ${LINES[st.i].name}`);
+      return;
+    }
     sfx.click();
     ui.openStation(st);
   },
@@ -232,7 +247,7 @@ function frame(t) {
       world.showGolden(false);
       game.nextGolden = GOLDEN.minDelay + Math.random() * (GOLDEN.maxDelay - GOLDEN.minDelay);
     }
-  } else {
+  } else if (state.tutorial >= TUTORIAL.length) {
     game.nextGolden -= dt;
     if (game.nextGolden <= 0) {
       world.showGolden(true);

@@ -445,9 +445,16 @@ export class World {
       p.position.set(DEPOT.x - 2.5 + i * 1.5, 0.4, DEPOT.z + 2.6);
       g.add(p);
     }
-    const cs = M.crateStack(9, 8);
-    cs.position.set(DEPOT.x + 1.5, 0.4, DEPOT.z - 3.2);
-    g.add(cs);
+    // kratten in het magazijn: hoe voller, hoe meer kratten
+    this.storeCrates = [];
+    for (let k = 0; k < 16; k++) {
+      const c = M.crateStack(20 + k, 1);
+      const col = k % 4, row = Math.floor(k / 4) % 2, lay = Math.floor(k / 8);
+      c.position.set(DEPOT.x - 1 + col * 0.95, 0.4 + lay * 0.75, DEPOT.z - 3.3 + row * 0.95);
+      c.visible = false;
+      g.add(c);
+      this.storeCrates.push(c);
+    }
     const sh = M.hitBox(10, 5, 10, DEPOT.x, 0, DEPOT.z);
     sh.userData.station = { kind: 'sales' };
     g.add(sh);
@@ -666,17 +673,33 @@ export class World {
     const trucks = Math.min(1 + Math.floor(state.sales / 10), 6);
     while (this.trucks.length < trucks) this.addTruck();
 
+    // appelbak en magazijn
+    if (prod) {
+      this.binFull = prod.binFull;
+      const bf = Math.min(1, state.apples / prod.binCap);
+      if (this.binMesh) this.binMesh.userData.heap.position.y = 0.2 + bf * 1.05;
+      if (this.binMesh) this.binMesh.userData.heap.visible = bf > 0.02;
+      const sf = Math.min(1, state.goods / prod.storeCap);
+      const n = Math.round(sf * this.storeCrates.length);
+      this.storeCrates.forEach((c, k) => { c.visible = k < n; });
+    }
+
     // stroomsnelheden
     if (prod) {
       LINES.forEach((l, i) => {
         const f = this.lineFlows[i];
         if (!f) return;
-        const r = prod.lines[i].rate;
-        const vis = r > 0 ? Math.min(3, 0.35 + 0.9 * Math.log10(1 + r)) : 0;
+        const lp = prod.lines[i];
+        const jammed = lp.status === 'full';
+        const r = lp.rate;
+        const vis = r > 0 && !jammed ? Math.min(3, 0.35 + 0.9 * Math.log10(1 + r)) : 0;
+        // vastgelopen: de band staat stil met de producten erop
         f.output.rate = vis;
+        f.output.speed = jammed ? 0 : 3.2;
         f.input.rate = vis * Math.min(2, Math.sqrt(l.apples));
-        this.lineObjs[i].activity = r > 0 ? Math.min(1.5, 0.2 + Math.log10(1 + r) / 2) * prod.lines[i].efficiency : 0;
-        this.lineObjs[i].efficiency = prod.lines[i].efficiency;
+        f.input.speed = jammed ? 0 : 3.2;
+        this.lineObjs[i].activity = vis > 0 ? Math.min(1.5, 0.2 + Math.log10(1 + r) / 2) * lp.efficiency : 0;
+        this.lineObjs[i].efficiency = lp.efficiency;
       });
     }
   }
@@ -852,7 +875,9 @@ export class World {
       if (pointers.size === 1) {
         moved += Math.abs(dx) + Math.abs(dy);
         if (moved > 6) {
-          this.pan(dx, dy);
+          const k = e.pointerType === 'mouse' ? 0.6 : 1;
+          this.pan(dx * k, dy * k);
+          if (e.pointerType === 'mouse') { lastT = performance.now(); return; }
           // snelheid in pixels per seconde, afgevlakt, voor het uitglijden na loslaten
           const now = performance.now();
           const dt = Math.max(8, now - lastT);
@@ -917,7 +942,7 @@ export class World {
       if (state.lines[i] > 0) out.push({ key: 'line' + i, st: { kind: 'line', i }, pos: new THREE.Vector3(10, 4.2, lineZ(i)) });
       else if (i < TIERS[state.tier].slots && (i === 0 || state.lines[i - 1] > 0)) out.push({ key: 'unlock' + i, st: { kind: 'unlock', i }, pos: new THREE.Vector3(10, 1.4, lineZ(i)) });
     });
-    if (this.siteAnchor) out.push({ key: 'tier', st: { kind: 'tier' }, pos: this.siteAnchor });
+    if (this.siteAnchor && (state.lines[1] > 0 || state.tier > 0)) out.push({ key: 'tier', st: { kind: 'tier' }, pos: this.siteAnchor });
     if (this.golden.visible) out.push({ key: 'golden', st: { kind: 'golden' }, pos: this.golden.position.clone().setY(5.2) });
     return out;
   }
@@ -930,7 +955,7 @@ export class World {
 
     // camera traagheid / focus
     if (this.goal) {
-      this.target.lerp(this.goal, Math.min(1, dt * 5));
+      this.target.lerp(this.goal, Math.min(1, dt * 2.5));
       if (this.target.distanceTo(this.goal) < 0.05) this.goal = null;
     } else if (!this.dragging && this.velocity.lengthSq() > 25) {
       this.pan(this.velocity.x * dt, this.velocity.y * dt);
@@ -1029,6 +1054,12 @@ export class World {
 
   updatePicker(p, dt) {
     const o = p.obj;
+    // appelbak vol: niemand gaat meer plukken
+    if (this.binFull && (p.state === 'idle' || p.state === 'drop') ) {
+      p.wait = Math.max(p.wait, 0.3);
+      o.userData.body.position.y = 0;
+      return;
+    }
     if (p.wait > 0) {
       p.wait -= dt;
       o.userData.body.position.y = p.state === 'pick' ? Math.abs(Math.sin(this.time * 6)) * 0.12 : 0;

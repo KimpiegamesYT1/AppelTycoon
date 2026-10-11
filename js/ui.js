@@ -4,6 +4,7 @@ import { LINES, TIERS, RESEARCH, ORCHARD, SALES, BOOST, INVESTOR_BONUS, INVESTOR
 import { fmt, money, duration, percent } from './format.js';
 import { goalAt, goalProgress, goalReward } from './goals.js';
 import { sfx } from './audio.js';
+import { TUTORIAL, tutorialDone } from './tutorial.js';
 import { icon, glyph, stationGlyph } from './icons.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -37,6 +38,12 @@ export class UI {
     $('#btn-settings').addEventListener('click', () => { sfx.click(); this.open('settings'); });
     this.el.boostBtn.addEventListener('click', () => this.game.boost());
     this.el.goalClaim.addEventListener('click', () => this.game.claimGoal());
+    this.el.tut = $('#tutorial');
+    this.el.tutText = $('#tut-text');
+    this.el.tutStep = $('#tut-step');
+    this.el.tutBtn = $('#tut-btn');
+    this.el.tutBtn.addEventListener('click', () => this.advanceTutorial());
+    this.tutShown = -1;
     this.el.goal.addEventListener('click', (e) => { if (!this.el.goalClaim.contains(e.target)) this.goalHint(); });
 
     // klikken in panelen via data-action
@@ -204,34 +211,43 @@ export class UI {
         else after.lines[st.i] += q.count;
         const incNow = E.incomePerSecond(s, now);
         const incNext = E.incomePerSecond(after, now);
+        const goTo = (kind, label) => `<button class="btn small" data-action="station" data-st='{"kind":"${kind}"}'>${label}</button>`;
         if (st.kind === 'orchard') {
           title = ORCHARD.name;
           rows.push(['Appels per seconde', fmt(E.orchardRate(s)), fmt(E.orchardRate(s, level + q.count))]);
-          rows.push(['Gebruikt door lijnen', fmt(prod.demand) + '/s']);
-          rows.push(['Overschot (los verkocht)', fmt(prod.spare) + '/s']);
-          if (prod.spare < 0.01 * prod.supply || prod.lines.some((l) => l.max > 0 && l.efficiency < 0.98)) {
-            extra = `<div class="tip warn">${icon('alert')} Je lijnen hebben meer appels nodig dan de boomgaard levert. Upgraden loont!</div>`;
+          rows.push(['Verbruikt door machines', fmt(prod.used) + '/s']);
+          rows.push(['Appelbak', `${fmt(s.apples)} / ${fmt(prod.binCap)}`, fmt(E.binCapacity(s, level + q.count))]);
+          if (prod.binFull) {
+            extra = `<div class="tip warn">${icon('alert')} De appelbak is vol, je plukkers staan stil. Je machines kunnen de appels niet bijhouden: upgrade een productielijn of open een nieuwe.</div>`;
+          } else if (prod.lines.some((l) => l.status === 'apples')) {
+            extra = `<div class="tip warn">${icon('alert')} Je machines hebben meer appels nodig dan de boomgaard plukt. Upgraden loont!</div>`;
           } else {
-            extra = `<div class="tip">Elke lijn heeft appels nodig. Houd de boomgaard groot genoeg voor al je productielijnen.</div>`;
+            extra = `<div class="tip">De plukkers verzamelen appels in de appelbak. Is de bak vol, dan stoppen ze met plukken.</div>`;
           }
         } else if (st.kind === 'sales') {
           title = SALES.name;
-          rows.push(['Verkoopbonus', 'x' + fmt(E.salesMult(s)), 'x' + fmt(E.salesMult(s, level + q.count))]);
-          rows.push(['Onderzoek', 'x' + fmt(E.researchMult(s, 'all'))]);
-          rows.push(['Uitbreidingen', 'x' + fmt(E.tierIncomeMult(s))]);
-          rows.push(['Investeerders', 'x' + fmt(E.investorMult(s))]);
-          extra = `<div class="tip">Verkoop & Marketing verhoogt de prijs van <b>alle</b> producten.</div>`;
+          const pm = E.priceMult(s);
+          rows.push(['Vervoer per seconde', money(E.transportRate(s) * pm), money(E.transportRate(s, level + q.count) * pm)]);
+          rows.push(['Aanvoer uit de fabriek', money(prod.output * pm) + '/s']);
+          rows.push(['Magazijn', `${money(s.goods * pm)} / ${money(prod.storeCap * pm)}`]);
+          rows.push(['Prijsbonus', 'x' + fmt(pm)]);
+          if (prod.storeFull) {
+            extra = `<div class="tip warn">${icon('alert')} Het magazijn is vol en je productielijnen lopen vast. Upgrade de vrachtwagens!</div>`;
+          } else {
+            extra = `<div class="tip">De vrachtwagens brengen alles uit het magazijn naar de markt. Kunnen ze het niet bijhouden, dan loopt het magazijn vol.</div>`;
+          }
         } else {
           const l = LINES[st.i];
           const lp = prod.lines[st.i];
           title = l.name;
           rows.push(['Productie', fmt(lp.rate) + '/s', fmt(E.lineRate(after, st.i)) + '/s max']);
-          rows.push(['Prijs per stuk', money(l.value * E.priceMult(s) / (E.isBoosted(s, now) ? BOOST.mult : 1))]);
+          rows.push(['Prijs per stuk', money(l.value * E.priceMult(s))]);
           rows.push(['Appels per stuk', String(l.apples)]);
-          rows.push(['Efficiëntie', percent(lp.efficiency || 0)]);
-          if (lp.efficiency < 0.98) {
-            extra = `<div class="tip warn">${icon('alert')} Te weinig appels! Deze lijn kan ${fmt(lp.max)}/s maken maar krijgt maar genoeg voor ${fmt(lp.rate)}/s.
-              <button class="btn small" data-action="station" data-st='{"kind":"orchard"}'>Naar boomgaard</button></div>`;
+          rows.push(['Draait op', percent(lp.efficiency || 0)]);
+          if (lp.status === 'full') {
+            extra = `<div class="tip warn">${icon('alert')} Vastgelopen: het magazijn is vol. De vrachtwagens kunnen het niet bijhouden. ${goTo('sales', 'Naar vrachtwagens')}</div>`;
+          } else if (lp.status === 'apples') {
+            extra = `<div class="tip warn">${icon('alert')} Te weinig appels! Deze machine kan ${fmt(lp.max)}/s maken maar krijgt genoeg voor ${fmt(lp.rate)}/s. ${goTo('orchard', 'Naar boomgaard')}</div>`;
           }
         }
         rows.push(['Totaal inkomen', money(incNow) + '/s', money(incNext) + '/s']);
@@ -263,11 +279,12 @@ export class UI {
           </div>`;
         };
         let html = this.amountToggle();
-        html += row({ kind: 'orchard' }, glyph('orchard'), `Boomgaard <span class="lv">Lv ${s.orchard}</span>`, `${fmt(prod.supply)} appels/s · ${fmt(prod.spare)} over`);
+        const fill = (x) => `<span class="mini-bar ${x > 0.97 ? 'full' : ''}"><i style="width:${Math.round(Math.min(1, x) * 100)}%"></i></span>`;
+        html += row({ kind: 'orchard' }, glyph('orchard'), `Boomgaard <span class="lv">Lv ${s.orchard}</span>`, `${fmt(prod.supply)} appels/s · bak ${fill(s.apples / prod.binCap)}${prod.binFull ? ' <span class="warn-text">vol</span>' : ''}`);
         LINES.forEach((l, i) => {
           if (s.lines[i] > 0) {
             const lp = prod.lines[i];
-            const warn = lp.efficiency < 0.98 ? ' · <span class="warn-text">te weinig appels</span>' : '';
+            const warn = lp.status === 'full' ? ' · <span class="bad-text">vastgelopen</span>' : lp.status === 'apples' ? ' · <span class="warn-text">te weinig appels</span>' : '';
             html += row({ kind: 'line', i }, glyph(l.id), `${l.name} <span class="lv">Lv ${s.lines[i]}</span>`, `${fmt(lp.rate)}/s · ${money(lp.income)}/s${warn}`);
           } else if (E.lineUnlockable(s, i)) {
             const can = s.money >= l.unlock;
@@ -279,7 +296,7 @@ export class UI {
               <button class="btn small" data-action="open" data-v="expand">Bekijk</button></div>`;
           }
         });
-        html += row({ kind: 'sales' }, glyph('sales'), `Verkoop & Marketing <span class="lv">Lv ${s.sales}</span>`, `prijs x${fmt(E.salesMult(s))}`);
+        html += row({ kind: 'sales' }, glyph('sales'), `Vrachtwagens <span class="lv">Lv ${s.sales}</span>`, `${money(prod.transport * E.priceMult(s))}/s · magazijn ${fill(s.goods / prod.storeCap)}${prod.storeFull ? ' <span class="bad-text">vol</span>' : ''}`);
         return { title: 'Je fabriek', sub: `${TIERS[s.tier].name} · ${money(prod.income)}/s`, html };
       },
     };
@@ -431,8 +448,7 @@ export class UI {
 
   welcome() {
     this.modal(`<div class="modal-icon">${glyph('fresh')}</div><h2>Appel Tycoon</h2>
-      <p>Bouw je eigen appelfabriek! Pluk appels in de boomgaard, maak er sap, taart en nog veel meer van, en verkoop alles met je vrachtwagens.</p>
-      <ul class="perks"><li>Tik op stations om ze te upgraden</li><li>Volg de doelen bovenaan voor beloningen</li><li>Breid uit tot een gigantische fabriek</li></ul>
+      <p>Begin met een klein schuurtje en een paar appelbomen, en bouw het uit tot een gigantische fabriek. We beginnen rustig: volg de stappen bovenaan.</p>
       <button class="btn green wide" data-action="modal-close">Starten!</button>`, true);
   }
 
@@ -482,9 +498,11 @@ export class UI {
       this.lastSlow = now;
       this.el.income.textContent = `+${money(prod.income)}/s`;
       this.el.inv.textContent = fmt(s.investors);
-      this.updateGoal(prod.income);
+      this.updateTutorial();
+      if (tutorialDone(s)) this.updateGoal(prod.income);
       this.updateBoost();
       this.updateBadges();
+      this.updateVisibility();
       this.refresh();
       this.updateLabelContent();
     }
@@ -494,6 +512,47 @@ export class UI {
       const p = this.game.world.toScreen(this.game.world.stationPos({ kind: 'sales' }).setY(8.5));
       if (p.visible && p.x > 0 && p.x < window.innerWidth && p.y > 60 && p.y < window.innerHeight) this.float(p.x, p.y, '+' + money(prod.income * 1.3), 'cash');
     }
+  }
+
+  // ---------- Tutorial ----------
+
+  advanceTutorial() {
+    const s = this.state;
+    if (tutorialDone(s)) return;
+    s.tutorial++;
+    sfx.coin();
+    this.updateTutorial();
+  }
+
+  updateTutorial() {
+    const s = this.state;
+    const done = tutorialDone(s);
+    this.el.tut.classList.toggle('hidden', done);
+    this.el.goal.classList.toggle('hidden', !done);
+    if (done) { this.tutTarget = null; return; }
+    const step = TUTORIAL[s.tutorial];
+    if (step.done && step.done(s)) { this.advanceTutorial(); return; }
+    if (this.tutShown !== s.tutorial) {
+      this.tutShown = s.tutorial;
+      this.el.tutStep.textContent = `Stap ${s.tutorial + 1} van ${TUTORIAL.length}`;
+      this.el.tutText.textContent = step.text;
+      this.el.tutBtn.textContent = step.button || '';
+      this.el.tutBtn.classList.toggle('hidden', !step.button);
+      this.tutTarget = step.target ? JSON.stringify(step.target) : null;
+      if (step.target) this.game.world.focus(step.target);
+    }
+  }
+
+  // Knoppen pas tonen als ze nodig zijn, zodat het begin overzichtelijk blijft.
+  updateVisibility() {
+    const s = this.state;
+    const show = (sel, on) => document.querySelector(sel).classList.toggle('hidden', !on);
+    const tut = tutorialDone(s);
+    show('[data-open="stations"]', s.lines[0] > 0);
+    show('[data-open="research"]', s.lines[1] > 0 || Object.keys(s.research).length > 0);
+    show('[data-open="expand"]', s.lines[1] > 0 || s.tier > 0);
+    show('#btn-boost', tut);
+    show('#btn-investors', s.investors > 0 || s.prestiges > 0 || E.pendingInvestors(s) > 0);
   }
 
   updateGoal(income) {
@@ -584,8 +643,19 @@ export class UI {
     if (st.kind === 'orchard' || st.kind === 'sales' || st.kind === 'line') {
       const lv = E.stationLevel(s, st.kind, st.i);
       can = E.upgradeQuote(s, st.kind, st.i || 0, 1).cost <= s.money;
-      const warn = st.kind === 'line' && this.game.prod.lines[st.i].efficiency < 0.98 ? '<span class="warn-dot">!</span>' : '';
-      html = `<span class="lb-icon">${stationGlyph(st, LINES)}</span><span class="lb-lv">Lv ${lv}</span>${can ? `<span class="up">${icon('up')}</span>` : ''}${warn}`;
+      const prod = this.game.prod;
+      let warn = '';
+      let bar = '';
+      if (st.kind === 'line') {
+        const status = prod.lines[st.i].status;
+        if (status === 'full') warn = '<span class="warn-dot bad">!</span>';
+        else if (status === 'apples') warn = '<span class="warn-dot">!</span>';
+      } else {
+        const f = st.kind === 'orchard' ? s.apples / prod.binCap : s.goods / prod.storeCap;
+        const pct = Math.round(Math.min(1, f) * 20) * 5;
+        bar = `<span class="lb-bar ${pct >= 97 ? 'full' : ''}"><i style="width:${pct}%"></i></span>${pct >= 97 ? '<span class="lb-full">VOL</span>' : ''}`;
+      }
+      html = `<span class="lb-icon">${stationGlyph(st, LINES)}</span><span class="lb-lv">Lv ${lv}</span>${bar}${can ? `<span class="up">${icon('up')}</span>` : ''}${warn}`;
     } else if (st.kind === 'unlock') {
       const l = LINES[st.i];
       can = s.money >= l.unlock;
@@ -600,5 +670,6 @@ export class UI {
     }
     if (el._html !== html) { el.innerHTML = html; el._html = html; }
     el.classList.toggle('can', can);
+    el.classList.toggle('tut', this.tutTarget === el.dataset.st);
   }
 }

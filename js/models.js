@@ -332,16 +332,32 @@ export function guardRail(length) {
   return b.mesh();
 }
 
+// Open appelbak; de appelstapel is een los deel dat omhoog komt als de bak voller wordt.
 export function appleBin() {
+  const g = new THREE.Group();
   const b = new Builder();
-  b.box(2.4, 1.1, 2.0, C.wood, 0, 0, 0);
-  for (let i = 0; i < 4; i++) b.box(2.45, 0.08, 2.05, C.woodDark, 0, 0.12 + i * 0.28, 0);
+  b.box(2.6, 0.15, 2.2, C.woodDark, 0, 0, 0);
+  for (let i = 0; i < 4; i++) {
+    const y = 0.15 + i * 0.3;
+    b.box(2.6, 0.26, 0.12, i % 2 ? C.wood : 0xd29a62, 0, y, 1.04);
+    b.box(2.6, 0.26, 0.12, i % 2 ? C.wood : 0xd29a62, 0, y, -1.04);
+    b.box(0.12, 0.26, 2.2, i % 2 ? C.wood : 0xd29a62, 1.24, y, 0);
+    b.box(0.12, 0.26, 2.2, i % 2 ? C.wood : 0xd29a62, -1.24, y, 0);
+  }
+  for (const [x, z] of [[-1.24, -1.04], [1.24, -1.04], [-1.24, 1.04], [1.24, 1.04]]) b.box(0.18, 1.35, 0.18, C.woodDark, x, 0, z);
+  b.box(0.15, 1.9, 0.15, C.woodDark, 1.5, 0, 1.25);
+  b.box(1.0, 0.6, 0.08, C.white, 1.5, 1.8, 1.25);
+  b.ico(0.2, C.apple, 1.5, 2.1, 1.32, { sz: 0.3 });
+  const box = b.mesh();
+  g.add(box);
+  const h = new Builder();
+  h.box(2.3, 0.2, 1.9, 0xb52d2a, 0, -0.2, 0);
   const r = rng(5);
-  for (let i = 0; i < 18; i++) b.ico(0.18, i % 7 ? C.apple : C.appleGold, (r() - 0.5) * 2, 1.05 + r() * 0.15, (r() - 0.5) * 1.6);
-  b.box(0.15, 1.7, 0.15, C.woodDark, 1.3, 0, 1.05);
-  b.box(1.0, 0.6, 0.08, C.white, 1.3, 1.6, 1.05);
-  b.ico(0.2, C.apple, 1.3, 1.9, 1.12, { sz: 0.3 });
-  return b.mesh();
+  for (let i = 0; i < 26; i++) h.ico(0.17, i % 9 ? C.apple : 0x8ccf3f, (r() - 0.5) * 2.0, r() * 0.12, (r() - 0.5) * 1.6);
+  const heap = h.mesh();
+  g.add(heap);
+  g.userData.heap = heap;
+  return g;
 }
 
 // ---------- Machines per productielijn ----------

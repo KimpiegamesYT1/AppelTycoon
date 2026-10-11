@@ -30,22 +30,29 @@
         <div id="income" class="income">+€0/s</div>
       </div>
     </div>
+    <div class="hud-center">
+      <div id="goal" class="goal">
+        <div class="goal-icon" data-icon="target"></div>
+        <div class="goal-body">
+          <div id="goal-text"></div>
+          <div class="bar"><i id="goal-bar"></i></div>
+        </div>
+        <button id="goal-claim" class="btn green small hidden">Claim</button>
+      </div>
+
+      <div id="tutorial" class="tutorial hidden">
+        <div class="tut-head"><span data-icon="sparkle"></span><span id="tut-step"></span></div>
+        <div id="tut-text"></div>
+        <button id="tut-btn" class="btn green small hidden"></button>
+      </div>
+
+      <div id="boost-banner" class="boost-banner hidden">Turbo x2 · <span id="boost-time"></span></div>
+    </div>
     <div class="hud-right">
       <button id="btn-investors" class="chip" aria-label="Investeerders"><span class="gold-ic" data-icon="star"></span><b id="inv-count">0</b></button>
       <button id="btn-settings" class="round" aria-label="Instellingen"><span data-icon="gear"></span></button>
     </div>
   </header>
-
-  <div id="goal" class="goal">
-    <div class="goal-icon" data-icon="target"></div>
-    <div class="goal-body">
-      <div id="goal-text"></div>
-      <div class="bar"><i id="goal-bar"></i></div>
-    </div>
-    <button id="goal-claim" class="btn green small hidden">Claim</button>
-  </div>
-
-  <div id="boost-banner" class="boost-banner hidden">Turbo x2 · <span id="boost-time"></span></div>
 
   <nav id="dock">
     <button data-open="stations"><span data-icon="factory"></span><small>Fabriek</small></button>

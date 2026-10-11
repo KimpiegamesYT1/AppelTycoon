@@ -31,18 +31,34 @@ function options(s) {
   return o;
 }
 
+// Voert een upgrade uit en koopt daarna wat nodig is om de keten weer in balans te krijgen
+// (vrachtwagens of boomgaard), zoals een echte speler zou doen. Geeft de totale kosten terug.
+function bundle(c, o) {
+  let cost = o.cost;
+  o.apply(c);
+  const li = o.label.startsWith('line') ? Number(o.label.slice(4)) : -1;
+  for (let k = 0; k < 60; k++) {
+    const p = E.computeProduction(c, 0, true);
+    if (o.label !== 'sales' && p.output > p.transport * 1.001) { cost += E.upgradeQuote(c, 'sales', 0, 1).cost; c.sales++; }
+    else if (li >= 0 && p.lines[li].status === 'apples') { cost += E.upgradeQuote(c, 'orchard', 0, 1).cost; c.orchard++; }
+    else break;
+  }
+  return cost;
+}
+
 function best(s) {
   const inc = E.incomePerSecond(s);
   let bestO = null, bestScore = Infinity;
   for (const o of options(s)) {
     const c = structuredClone(s);
-    o.apply(c);
+    const cost = o.event ? (o.apply(c), o.cost) : bundle(c, o);
     let d = E.incomePerSecond(c) - inc;
     // een nieuwe lijn of hal opent de weg naar meer; waardeer dat iets hoger
     if (o.label.startsWith('UNLOCK') || o.label.startsWith('TIER')) d = Math.max(d, inc * 0.25);
     if (d <= 0) continue;
-    const score = Math.max(0, o.cost - s.money) / inc + (o.cost / d) * (o.bias ?? 1);
-    if (score < bestScore) { bestScore = score; bestO = o; }
+    const wait = cost > s.money ? (cost - s.money) / Math.max(inc, 1e-9) : 0;
+    const score = wait + (cost / d) * (o.bias ?? 1);
+    if (score < bestScore) { bestScore = score; bestO = { ...o, cost }; }
   }
   return bestO;
 }
@@ -59,8 +75,7 @@ while (t < minutes * 60) {
   for (;;) {
     const o = best(s);
     if (!o || o.cost > s.money) break;
-    s.money -= o.cost;
-    o.apply(s);
+    s.money -= o.event ? (o.apply(s), o.cost) : bundle(s, o);
     purchases++;
     gaps.push(t - lastPurchaseAt);
     maxGap = Math.max(maxGap, t - lastPurchaseAt);
@@ -69,8 +84,8 @@ while (t < minutes * 60) {
   }
   if (t - lastReport >= 300) {
     lastReport = t;
-    const p = E.computeProduction(s);
-    console.log(`${clock(t)}  -- inkomen ${fmt(p.income)}/s  appels ${fmt(p.supply)}/s (vrij ${fmt(p.spare)})  boomgaard L${s.orchard} verkoop L${s.sales} lijnen [${s.lines.join(',')}]  investeerders +${E.pendingInvestors(s)} (heeft ${s.investors})`);
+    const p = E.computeProduction(s, 0, true);
+    console.log(`${clock(t)}  -- inkomen ${fmt(p.income)}/s  appels ${fmt(p.supply)}/s (vrij ${fmt(p.spare)}) transport ${fmt(p.transport)} output ${fmt(p.output)}  boomgaard L${s.orchard} wagens L${s.sales} lijnen [${s.lines.join(',')}]  investeerders +${E.pendingInvestors(s)} (heeft ${s.investors})`);
   }
   if (doPrestige) {
     const pend = E.pendingInvestors(s);
