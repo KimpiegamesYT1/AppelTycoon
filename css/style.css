@@ -141,6 +141,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   font-size: 14px;
 }
 .goal.done { background: #eaffdf; animation: pulse 1s ease-in-out infinite; }
+@keyframes goalPop { 0% { transform: scale(0.55); opacity: 0.6; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
 @keyframes pulse { 50% { box-shadow: 0 0 0 4px rgba(76, 195, 90, 0.55), 0 4px 0 rgba(0, 0, 0, 0.12); } }
 .goal-icon { font-size: 20px; color: var(--red); display: flex; }
 .goal-body { flex: 1; min-width: 0; }
@@ -608,6 +609,14 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
     content: '!'; position: absolute; top: -4px; right: -4px; width: 20px; height: 20px; border-radius: 50%;
     background: var(--green); color: #fff; font-size: 13px; font-weight: 700; display: grid; place-items: center;
   }
+  /* doel gehaald: het knopje ploept open naar links tot een pilletje met de beloning */
+  .goal.done:not(.open) {
+    width: auto; padding: 4px 4px 4px 9px; gap: 6px; border-radius: 26px;
+    background: #eaffdf; transform-origin: right center;
+    animation: goalPop 0.5s cubic-bezier(0.3, 1.6, 0.5, 1), pulse 1s ease-in-out 0.5s infinite;
+  }
+  .goal.done:not(.open)::before, .goal.done:not(.open)::after { display: none; }
+  .goal.done:not(.open) #goal-claim { display: inline-flex; padding: 7px 10px; }
   .goal.open { position: fixed; left: 10px; right: 10px; top: calc(66px + var(--safe-t)); max-width: none; z-index: 15; animation: pop 0.2s ease-out; }
   #toasts { top: calc(70px + var(--safe-t)); }
 }
