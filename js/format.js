@@ -23,6 +23,15 @@ export function fmt(n) {
 
 export const money = (n) => '€' + fmt(n);
 
+// Snelheden (per seconde): onder de 100 met één decimaal, zodat kleine verbeteringen zichtbaar zijn.
+export function rate(n) {
+  if (!Number.isFinite(n)) return '∞';
+  if (n >= 100 || n === 0) return fmt(n);
+  const dec = n < 1 ? 100 : 10;
+  const r = Math.round(n * dec) / dec;
+  return String(r).replace('.', ',');
+}
+
 export function duration(sec) {
   sec = Math.max(0, Math.round(sec));
   const h = Math.floor(sec / 3600);

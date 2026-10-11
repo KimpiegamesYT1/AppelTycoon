@@ -69,13 +69,19 @@ let lastReport = 0;
 let purchases = 0, lastPurchaseAt = 0, maxGap = 0;
 let runStart = 0;
 const gaps = [];
+const paybacks = [];
 while (t < minutes * 60) {
   E.tick(s, beat);
   t += beat;
   for (;;) {
     const o = best(s);
     if (!o || o.cost > s.money) break;
+    const incBefore = E.incomePerSecond(s);
     s.money -= o.event ? (o.apply(s), o.cost) : bundle(s, o);
+    if (o.label.startsWith('line')) {
+      const gain = E.incomePerSecond(s) - incBefore;
+      if (gain > 0) paybacks.push([t, o.cost / gain]);
+    }
     purchases++;
     gaps.push(t - lastPurchaseAt);
     maxGap = Math.max(maxGap, t - lastPurchaseAt);
@@ -99,4 +105,9 @@ while (t < minutes * 60) {
   }
 }
 gaps.sort((a, b) => a - b);
+// terugverdientijd van lijn-upgrades per half uur (mediaan, in minuten)
+for (let h = 0; h < minutes; h += 30) {
+  const p = paybacks.filter(([tt]) => tt >= h * 60 && tt < (h + 30) * 60).map(([, v]) => v / 60).sort((a, b) => a - b);
+  if (p.length) console.log(`terugverdientijd lijn-upgrades ${h}-${h + 30} min: mediaan ${p[Math.floor(p.length / 2)].toFixed(1)} min (${p.length} upgrades)`);
+}
 console.log(`aankopen: ${purchases}, mediane wachttijd ${gaps[Math.floor(gaps.length / 2)]}s, p90 ${gaps[Math.floor(gaps.length * 0.9)]}s, langste ${maxGap}s`);

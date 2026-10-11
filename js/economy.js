@@ -1,7 +1,7 @@
 // Pure spellogica zonder DOM of 3D, zodat de balans-simulatie dezelfde code gebruikt.
 import {
-  MILESTONES, ORCHARD, SALES, LINES, LINE_GROWTH, LINE_PRICE_STEP, TIERS, START_MONEY,
-  RESEARCH, INVESTOR_BONUS, INVESTOR_BASE, DOCK_LEVELS, PICKER_LEVELS, TRUCK,
+  MILESTONES, ORCHARD, SALES, LINES, LINE_GROWTH, LINE_PRICE_GROWTH, TIERS, START_MONEY,
+  RESEARCH, INVESTOR_BONUS, INVESTOR_BASE, INVESTOR_POWER, DOCK_LEVELS, PICKER_LEVELS, TRUCK,
 } from './config.js';
 
 export const SAVE_VERSION = 2;
@@ -80,7 +80,7 @@ export function orchardRate(state, level = state.orchard) {
 // Waarde van één product (zonder prijsbonussen van onderzoek/uitbreidingen/investeerders).
 // Stijgt met het level van de lijn: betere kwaliteit, betere verpakking.
 export function lineValue(i, level) {
-  return LINES[i].value * (1 + LINE_PRICE_STEP * (Math.max(1, level) - 1));
+  return LINES[i].value * LINE_PRICE_GROWTH ** (Math.max(1, level) - 1);
 }
 
 export function lineRate(state, i, level = state.lines[i]) {
@@ -303,8 +303,15 @@ export function buyResearch(state, id) {
 
 // ---- Investeerders ----
 
+// Investeerders groeien met (verdiend)^INVESTOR_POWER: steeds meer verdienen levert steeds minder
+// extra investeerders op, zodat rondes niet uit de hand lopen.
 export function investorsFor(earned) {
-  return Math.floor(Math.sqrt(Math.max(0, earned) / INVESTOR_BASE));
+  return Math.floor((Math.max(0, earned) / INVESTOR_BASE) ** INVESTOR_POWER);
+}
+
+// Hoeveel je in totaal verdiend moet hebben voor n investeerders.
+export function earningsForInvestors(n) {
+  return n ** (1 / INVESTOR_POWER) * INVESTOR_BASE;
 }
 
 // Investeerders die je erbij krijgt als je nu verkoopt.

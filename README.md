@@ -28,7 +28,7 @@ Je begint met een schuurtje, een paar appelbomen en één vrachtwagen. Een korte
 - **Ketenbalans** – een paneel met staven en een grafiek van plukken, verwerken en vervoeren (alles in appels per seconde), zodat je ziet welke schakel het zwakst is.
 - De banden vormen één netwerk (toevoerband → lijnen → verzamelband → magazijn). Loopt het magazijn vol, dan hopen producten zich zichtbaar op tot aan de machines.
 - Je moet dus steeds de zwakste schakel upgraden. De labels boven de stations laten zien hoe vol de appelbak en het magazijn zijn, en een uitroepteken als een lijn te weinig appels krijgt (oranje) of vastloopt (rood).
-- **Upgrades** maken een lijn sneller én het product duurder (+4% van de basisprijs per level).
+- **Upgrades** maken een lijn sneller én het product duurder (+4% prijs per level, samengesteld). Daardoor verdien je een upgrade meestal binnen een paar minuten terug.
 - **Mijlpalen** – op level 25, 50, 100, … verdubbelt een station.
 - **Uitbreidingen** – 11 fabrieksformaten, van Schuurtje tot Appelplaneet.
 - **Onderzoek**, **investeerders (prestige)**, **gouden appels**, **doelen** en **offline-inkomen** (50%, max 3 uur).
@@ -44,7 +44,7 @@ node tools/balance-sim.mjs 120             # eerste ronde, 120 minuten
 node tools/balance-sim.mjs 600 --prestige  # met investeerdersrondes
 ```
 
-Richtwaarden voor de bot (een echte speler doet er langer over): Appelsap na ~4 min, Werkplaats ~7 min, Fabriek ~14 min, Grote Fabriek ~26 min, Industriehal ~60 min, Megafabriek ~1,9 uur, eerste investeerdersronde na ~1,6 uur. Met investeerders gaat elke ronde sneller; de Gigafabriek komt na een paar rondes.
+Richtwaarden voor de bot (een echte speler doet er langer over): Appelsap na ~4 min, Werkplaats ~7 min, Fabriek ~12 min, Grote Fabriek ~22 min, Industriehal ~45 min, Megafabriek ~1u50, eerste investeerders (+100%) na ~1u50. Daarna duurt een ronde ~1u20–1u45; de Gigafabriek komt na ~5u45. Lijn-upgrades verdienen zich de eerste drie uur in 1–9 minuten terug (de simulatie print dit). Met investeerders gaat elke ronde sneller; de Gigafabriek komt na een paar rondes.
 
 ## Techniek
 

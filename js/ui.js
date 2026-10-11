@@ -1,7 +1,7 @@
 // Alle HTML-interface: HUD, panelen, labels boven stations, meldingen.
 import * as E from './economy.js';
 import { LINES, TIERS, RESEARCH, ORCHARD, SALES, DOCK_LEVELS, INVESTOR_BONUS, INVESTOR_BASE } from './config.js';
-import { fmt, money, duration } from './format.js';
+import { fmt, money, duration, rate } from './format.js';
 import { goalAt, goalProgress, goalReward } from './goals.js';
 import { sfx } from './audio.js';
 import { TUTORIAL, tutorialDone } from './tutorial.js';
@@ -243,8 +243,8 @@ export class UI {
         if (st.kind === 'orchard') {
           title = ORCHARD.name;
           const demand = LINES.reduce((t, l, i) => t + E.lineRate(s, i) * l.apples, 0);
-          rows.push(['Plukken', fmt(E.orchardRate(s)) + ' appels/s', fmt(E.orchardRate(after)) + '/s']);
-          rows.push(['Machines kunnen verwerken', fmt(demand) + ' appels/s']);
+          rows.push(['Plukken', rate(E.orchardRate(s)) + ' appels/s', rate(E.orchardRate(after)) + '/s']);
+          rows.push(['Machines kunnen verwerken', rate(demand) + ' appels/s']);
           rows.push(['Appelbak', `${fmt(s.apples)} / ${fmt(prod.binCap)}`]);
           const np = E.pickerLevel(level);
           rows.push(['Plukkers', String(E.pickerCount(level)) + (np ? ` <small>(+1 op level ${np})</small>` : '')]);
@@ -268,12 +268,16 @@ export class UI {
           title = l.name;
           const maxNext = E.lineRate(after, st.i);
           // productie en capaciteit in één regel: '1,2 van 1,6/s' als hij niet op volle kracht draait
-          const prodTxt = lp.rate >= lp.max * 0.98 ? `${fmt(lp.max)}/s` : `${fmt(lp.rate)} <small>van</small> ${fmt(lp.max)}/s`;
-          rows.push(['Productie', prodTxt, fmt(maxNext) + '/s']);
+          const prodTxt = lp.rate >= lp.max * 0.98 ? `${rate(lp.max)}/s` : `${rate(lp.rate)} <small>van</small> ${rate(lp.max)}/s`;
+          rows.push(['Productie', prodTxt, rate(maxNext) + '/s']);
           // de pijl toont wat de upgrade echt extra oplevert voor je hele fabriek (vervoer en appels meegerekend)
           const extraIncome = Math.max(0, ssNext.income - ss.income);
-          rows.push(['Opbrengst', money(ss.lines[st.i].income * 60) + '/min', '+' + money(extraIncome * 60) + '/min']);
-          rows.push(['Appelverbruik', `${fmt(lp.rate * l.apples)}/s <small>(${l.apples} per stuk)</small>`]);
+          // zitten de vrachtwagens vol, dan tonen we wat het oplevert zodra zij meekunnen
+          const extraPotential = Math.max(0, (ssNext.potential - ss.potential) * pm);
+          const truckLimited = ssNext.potential > ssNext.transport * 1.001 && extraIncome < extraPotential * 0.5;
+          rows.push(['Opbrengst', money(ss.lines[st.i].income * 60) + '/min',
+            truckLimited ? `+${money(extraPotential * 60)}/min <small>met meer vrachtwagens</small>` : '+' + money(extraIncome * 60) + '/min']);
+          rows.push(['Appelverbruik', `${rate(lp.rate * l.apples)}/s <small>(${l.apples} per stuk)</small>`]);
           const free = Math.max(0, (ss.transport - ss.potential) * pm * 60);
           const nextLine = ssNext.lines[st.i];
           if (lp.status === 'full') extra = warn('Magazijn vol: deze lijn staat stil tot de vrachtwagens het magazijn leeghalen.', goTo('sales', 'Vrachtwagens'));
@@ -469,7 +473,7 @@ export class UI {
       render: () => {
         const s = this.state;
         const pend = E.pendingInvestors(s);
-        const nextAt = (E.investorsFor(s.totalEarned) + 1) ** 2 * INVESTOR_BASE;
+        const nextAt = E.earningsForInvestors(E.investorsFor(s.totalEarned) + 1);
         const needed = nextAt - s.totalEarned;
         const bonusNow = s.investors * INVESTOR_BONUS;
         const bonusAfter = (s.investors + pend) * INVESTOR_BONUS;
