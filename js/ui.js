@@ -266,7 +266,6 @@ export class UI {
           const l = LINES[st.i];
           const lp = prod.lines[st.i];
           title = l.name;
-          sub += ` · ${l.machine}`;
           const maxNext = E.lineRate(after, st.i);
           // productie en capaciteit in één regel: '1,2 van 1,6/s' als hij niet op volle kracht draait
           const prodTxt = lp.rate >= lp.max * 0.98 ? `${fmt(lp.max)}/s` : `${fmt(lp.rate)} <small>van</small> ${fmt(lp.max)}/s`;
