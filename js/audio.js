@@ -38,7 +38,6 @@ export const sfx = {
   unlock() { if (enabled) [392, 523, 659, 784].forEach((f, i) => tone(f, i * 0.07, 0.2, 'triangle', 0.12)); },
   coin() { if (enabled) { tone(988, 0, 0.08, 'square', 0.05); tone(1319, 0.07, 0.2, 'square', 0.05); } },
   error() { if (enabled) tone(180, 0, 0.15, 'sawtooth', 0.06, 0.7); },
-  boost() { if (enabled) tone(220, 0, 0.5, 'sawtooth', 0.06, 4); },
   prestige() { if (enabled) [262, 330, 392, 523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.09, 0.3, 'triangle', 0.1)); },
 };
 

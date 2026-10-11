@@ -1,7 +1,7 @@
 // Pure spellogica zonder DOM of 3D, zodat de balans-simulatie dezelfde code gebruikt.
 import {
   MILESTONES, ORCHARD, SALES, LINES, LINE_GROWTH, TIERS, START_MONEY,
-  RESEARCH, INVESTOR_BONUS, INVESTOR_BASE, BOOST,
+  RESEARCH, INVESTOR_BONUS, INVESTOR_BASE, DOCK_LEVELS,
 } from './config.js';
 
 export const SAVE_VERSION = 2;
@@ -21,11 +21,9 @@ export function newState() {
     apples: 0,           // appels in de appelbak
     goods: 0,            // goederen in het magazijn (basiswaarde)
     research: {},
-    boostUntil: 0,
-    boostReadyAt: 0,
     goal: 0,
     tutorial: 0,
-    stats: { boosts: 0, golden: 0, upgrades: 0 },
+    stats: { golden: 0, upgrades: 0 },
     playTime: 0,
     lastTick: Date.now(),
     settings: { sound: true, music: true, quality: 'auto' },
@@ -73,9 +71,6 @@ export function investorMult(state) {
   return 1 + state.investors * INVESTOR_BONUS;
 }
 
-export function isBoosted(state, now) {
-  return now < state.boostUntil;
-}
 
 export function orchardRate(state, level = state.orchard) {
   return ORCHARD.baseRate * level * milestoneMult(level) * tierOrchardMult(state) * researchMult(state, 'orchard');
@@ -88,7 +83,7 @@ export function lineRate(state, i, level = state.lines[i]) {
 
 // Hoeveel goederen (basiswaarde per seconde) de vrachtwagens wegbrengen.
 export function transportRate(state, level = state.sales) {
-  return SALES.baseRate * level * SALES.rateGrowth ** (level - 1) * milestoneMult(level) * researchMult(state, 'transport');
+  return SALES.baseRate * level * SALES.rateGrowth ** (level - 1) * truckCount(level) * researchMult(state, 'transport');
 }
 
 export function binCapacity(state, level = state.orchard) {
@@ -104,8 +99,13 @@ export function priceMult(state) {
   return researchMult(state, 'all') * tierIncomeMult(state) * investorMult(state);
 }
 
-export function speedMult(state, now = 0) {
-  return isBoosted(state, now) ? BOOST.mult : 1;
+// Aantal laadplekken (en vrachtwagens) bij een level.
+export function truckCount(level) {
+  return 1 + DOCK_LEVELS.filter((l) => level >= l).length;
+}
+
+export function nextDockLevel(level) {
+  return DOCK_LEVELS.find((l) => level < l) || null;
 }
 
 // Verdeelt de appels over de lijnen: duurste producten (per appel) eerst.
@@ -114,7 +114,7 @@ const lineOrder = LINES.map((l, i) => i).sort((a, b) => LINES[b].value / LINES[b
 // Huidige stroom door de keten, rekening houdend met wat er in de appelbak en het magazijn ligt.
 // Per lijn: status 'ok' | 'apples' (te weinig appels) | 'full' (magazijn vol).
 export function computeProduction(state, now = 0, steady = false) {
-  const sp = speedMult(state, now);
+  const sp = 1;
   const supply = orchardRate(state) * sp;
   const transport = transportRate(state) * sp;
   const binCap = binCapacity(state);
@@ -149,6 +149,23 @@ export function computeProduction(state, now = 0, steady = false) {
     spare: Math.max(0, supply - used),
     income: sold * pm,
   };
+}
+
+// Capaciteit van de drie schakels, alles in appels per seconde:
+// plukken, verwerken door de machines, en vervoeren door de vrachtwagens.
+export function chainBalance(state) {
+  const p = computeProduction(state, 0, true);
+  let machines = 0;
+  LINES.forEach((l, i) => { machines += lineRate(state, i) * l.apples; });
+  let vpa = p.used > 0 ? p.output / p.used : 0;
+  if (!vpa) {
+    const i = state.lines.findIndex((x) => x > 0);
+    vpa = i >= 0 ? LINES[i].value / LINES[i].apples : 1;
+  }
+  const out = { pick: p.supply, machines, transport: p.transport / vpa };
+  out.weakest = machines <= 0 ? 'machines'
+    : Object.entries({ pick: out.pick, machines: out.machines, transport: out.transport }).sort((a, b) => a[1] - b[1])[0][0];
+  return out;
 }
 
 // Inkomen als alles in evenwicht is (voor offline-inkomen, beloningen en de balans-simulatie).
@@ -281,7 +298,7 @@ export function earn(state, amount) {
 
 // Laat de keten dt seconden lopen, in kleine stapjes zodat appelbak en magazijn kloppen.
 export function tick(state, dt, now = 0) {
-  const sp = speedMult(state, now);
+  const sp = 1;
   const supply = orchardRate(state) * sp;
   const transport = transportRate(state) * sp;
   const binCap = binCapacity(state);

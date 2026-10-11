@@ -4,7 +4,7 @@ import { UI } from './ui.js';
 import { sfx, setSound, initMusic, setMusic } from './audio.js';
 import { glyph } from './icons.js';
 import { TUTORIAL } from './tutorial.js';
-import { LINES, TIERS, BOOST, GOLDEN, OFFLINE, INVESTOR_BONUS } from './config.js';
+import { LINES, TIERS, GOLDEN, OFFLINE, INVESTOR_BONUS } from './config.js';
 import { goalAt, goalProgress, goalReward } from './goals.js';
 import { money, fmt } from './format.js';
 
@@ -119,16 +119,6 @@ const game = {
     this.save();
   },
 
-  boost() {
-    const now = Date.now();
-    if (now < state.boostReadyAt) { sfx.error(); return; }
-    state.boostUntil = now + BOOST.duration * 1000;
-    state.boostReadyAt = state.boostUntil + BOOST.cooldown * 1000;
-    state.stats.boosts++;
-    sfx.boost();
-    ui.toast(`Turbo! Alles ${BOOST.mult}x zo snel`, 'bolt');
-  },
-
   claimGoal() {
     const g = goalAt(state.goal);
     const p = goalProgress(g, state, this.prod.income);
@@ -143,6 +133,7 @@ const game = {
   tapStation(st) {
     if (!st) { ui.close(); return; }
     if (st.kind === 'golden') { this.collectGolden(); return; }
+    if (st.kind === 'dock') st = { kind: 'sales' };
     // een nieuwe lijn bouw je direct door op het prijslabel te tikken
     if (st.kind === 'unlock' && E.lineUnlockable(state, st.i)) {
       if (state.money >= LINES[st.i].unlock) { this.unlockLine(st.i); return; }
@@ -211,8 +202,15 @@ try {
   throw e;
 }
 game.world = world;
+// geld dat de vrachtwagens opleveren tonen we per vertrekkende vrachtwagen
+game.salesAccum = 0;
 const ui = new UI(game);
 game.ui = ui;
+world.onTruckDepart = (k, pos) => {
+  const amount = game.salesAccum;
+  game.salesAccum = 0;
+  if (amount > 0) { ui.truckCash(world, pos, amount); sfx.coin(); }
+};
 
 function handleGap(gap) {
   const secs = Math.min(gap, OFFLINE.maxHours * 3600);
@@ -235,7 +233,11 @@ function frame(t) {
   const gap = (now - state.lastTick) / 1000;
   state.lastTick = now;
   if (gap > 30) handleGap(gap);
-  else if (gap > 0) E.tick(state, gap, now);
+  else if (gap > 0) {
+    const before = state.runEarned;
+    E.tick(state, gap, now);
+    game.salesAccum += state.runEarned - before;
+  }
 
   game.prod = E.computeProduction(state, now);
   world.sync(state, game.prod);

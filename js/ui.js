@@ -1,7 +1,7 @@
 // Alle HTML-interface: HUD, panelen, labels boven stations, meldingen.
 import * as E from './economy.js';
-import { LINES, TIERS, RESEARCH, ORCHARD, SALES, BOOST, INVESTOR_BONUS, INVESTOR_BASE } from './config.js';
-import { fmt, money, duration, percent } from './format.js';
+import { LINES, TIERS, RESEARCH, ORCHARD, SALES, DOCK_LEVELS, INVESTOR_BONUS, INVESTOR_BASE } from './config.js';
+import { fmt, money, duration } from './format.js';
 import { goalAt, goalProgress, goalReward } from './goals.js';
 import { sfx } from './audio.js';
 import { TUTORIAL, tutorialDone } from './tutorial.js';
@@ -16,15 +16,15 @@ export class UI {
     this.panel = null;
     this.labels = new Map();
     this.lastSlow = 0;
-    this.lastPop = 0;
+    this.history = [];
+    this.lastSample = 0;
     this.hold = null;
 
     this.el = {
       money: $('#money'), income: $('#income'), inv: $('#inv-count'),
       goalText: $('#goal-text'), goalBar: $('#goal-bar'), goalClaim: $('#goal-claim'), goal: $('#goal'),
       sheet: $('#sheet'), modal: $('#modal'), modalCard: $('#modal-card'), labels: $('#labels'), fx: $('#fx'),
-      toasts: $('#toasts'), boostBtn: $('#btn-boost'), boostLabel: $('#boost-label'),
-      boostBanner: $('#boost-banner'), boostTime: $('#boost-time'),
+      toasts: $('#toasts'), moneyCard: $('.money-card'),
     };
 
     document.querySelectorAll('[data-icon]').forEach((el) => { el.innerHTML = icon(el.dataset.icon); });
@@ -36,7 +36,6 @@ export class UI {
     }));
     $('#btn-investors').addEventListener('click', () => { sfx.click(); this.open('investors'); });
     $('#btn-settings').addEventListener('click', () => { sfx.click(); this.open('settings'); });
-    this.el.boostBtn.addEventListener('click', () => this.game.boost());
     this.el.goalClaim.addEventListener('click', () => this.game.claimGoal());
     this.el.tut = $('#tutorial');
     this.el.tutText = $('#tut-text');
@@ -132,6 +131,7 @@ export class UI {
       investors: () => this.investorsPanel(),
       settings: () => this.settingsPanel(),
       station: () => this.stationPanel(data),
+      chain: () => this.chainPanel(),
     };
     this.panel = { id, data, ...builders[id]() };
     this.el.sheet.innerHTML = `
@@ -187,7 +187,14 @@ export class UI {
       <span class="buy-l">${label} <b>+${q.count}</b></span><span class="buy-c">${money(q.cost)}</span></button>`;
   }
 
-  milestoneBar(level) {
+  milestoneBar(level, kind) {
+    if (kind === 'sales') {
+      const next = E.nextDockLevel(level);
+      if (!next) return '';
+      const prev = [1, ...DOCK_LEVELS].filter((l) => l <= level).pop();
+      const pct = Math.round(((level - prev) / (next - prev)) * 100);
+      return `<div class="milestone"><div class="ms-text">Level ${next}: <b>extra laadplek + vrachtwagen</b></div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
+    }
     const next = E.nextMilestone(level);
     if (!next) return '';
     const prev = E.prevMilestone(level);
@@ -214,7 +221,7 @@ export class UI {
           title = ORCHARD.name;
           rows.push(['Appels per seconde', fmt(E.orchardRate(s)), fmt(E.orchardRate(s, level + q.count))]);
           rows.push(['Verbruikt door machines', fmt(prod.used) + '/s']);
-          rows.push(['Appelbak', `${fmt(s.apples)} / ${fmt(prod.binCap)}`, fmt(E.binCapacity(s, level + q.count))]);
+          rows.push(['Appelbak', `${Math.round(Math.min(1, s.apples / prod.binCap) * 100)}% vol`]);
           if (prod.binFull) {
             extra = `<div class="tip warn">${icon('alert')} De appelbak is vol, je plukkers staan stil. Je machines kunnen de appels niet bijhouden: upgrade een productielijn of open een nieuwe.</div>`;
           } else if (prod.lines.some((l) => l.status === 'apples')) {
@@ -226,9 +233,9 @@ export class UI {
           title = SALES.name;
           const pm = E.priceMult(s);
           rows.push(['Vervoer per seconde', money(E.transportRate(s) * pm), money(E.transportRate(s, level + q.count) * pm)]);
+          rows.push(['Vrachtwagens', String(E.truckCount(level)), E.truckCount(level + q.count) > E.truckCount(level) ? String(E.truckCount(level + q.count)) : '']);
           rows.push(['Aanvoer uit de fabriek', money(prod.output * pm) + '/s']);
-          rows.push(['Magazijn', `${money(s.goods * pm)} / ${money(prod.storeCap * pm)}`]);
-          rows.push(['Prijsbonus', 'x' + fmt(pm)]);
+          rows.push(['Magazijn', `${Math.round(Math.min(1, s.goods / prod.storeCap) * 100)}% vol`]);
           if (prod.storeFull) {
             extra = `<div class="tip warn">${icon('alert')} Het magazijn is vol en je productielijnen lopen vast. Upgrade de vrachtwagens!</div>`;
           } else {
@@ -238,14 +245,12 @@ export class UI {
           const l = LINES[st.i];
           const lp = prod.lines[st.i];
           title = l.name;
-          rows.push(['Productie', fmt(lp.rate) + '/s', fmt(E.lineRate(after, st.i)) + '/s max']);
-          rows.push(['Prijs per stuk', money(l.value * E.priceMult(s))]);
-          rows.push(['Appels per stuk', String(l.apples)]);
-          rows.push(['Draait op', percent(lp.efficiency || 0)]);
           // wat déze lijn oplevert, nu en na de upgrade (als de keten het kan bijhouden)
           const ssNow = E.computeProduction(s, now, true);
           const ssNext = E.computeProduction(after, now, true);
           rows.push(['Verdient', money(ssNow.lines[st.i].income) + '/s', money(ssNext.lines[st.i].income) + '/s']);
+          rows.push(['Capaciteit', fmt(lp.max) + ' per s', fmt(E.lineRate(after, st.i)) + ' per s']);
+          rows.push(['Appelverbruik', fmt(lp.max * l.apples) + '/s', fmt(E.lineRate(after, st.i) * l.apples) + '/s']);
           if (lp.status !== 'full' && ssNext.output > ssNext.transport * 1.001) {
             extra = `<div class="tip">Let op: je vrachtwagens kunnen niet alles meer vervoeren. Upgrade ze ook, anders loopt het magazijn vol. ${goTo('sales', 'Naar vrachtwagens')}</div>`;
           }
@@ -256,11 +261,11 @@ export class UI {
           }
         }
         const html = `
-          ${this.milestoneBar(level)}
+          ${this.milestoneBar(level, st.kind)}
           <div class="stats">${rows.map((r) => `<div class="row"><span>${r[0]}</span><b>${r[1]}</b>${r[2] ? `<em>→ ${r[2]}</em>` : ''}</div>`).join('')}</div>
           ${extra}
           <div class="buy-row">${this.amountToggle()}${this.buyButton(st.kind, st.i || 0)}</div>`;
-        return { title, sub: `Level <b>${level}</b>${st.kind === 'line' ? ' · ' + LINES[st.i].machine : ''}`, html };
+        return { title, sub: `Level <b>${level}</b>${st.kind === 'line' ? ' · ' + money(LINES[st.i].value * E.priceMult(s)) + ' per stuk · ' + LINES[st.i].apples + (LINES[st.i].apples === 1 ? ' appel' : ' appels') + ' per stuk' : ''}`, html };
       },
     };
   }
@@ -282,7 +287,7 @@ export class UI {
             <button class="btn green small ${can ? '' : 'disabled'}" data-action="upgrade" data-hold data-kind="${st.kind}" data-i="${st.i || 0}">+${q.count}<br><small>${money(q.cost)}</small></button>
           </div>`;
         };
-        let html = this.amountToggle();
+        let html = this.weakBox() + this.amountToggle();
         const fill = (x) => `<span class="mini-bar ${x > 0.97 ? 'full' : ''}"><i style="width:${Math.round(Math.min(1, x) * 100)}%"></i></span>`;
         html += row({ kind: 'orchard' }, glyph('orchard'), `Boomgaard <span class="lv">Lv ${s.orchard}</span>`, `${fmt(prod.supply)} appels/s · bak ${fill(s.apples / prod.binCap)}${prod.binFull ? ' <span class="warn-text">vol</span>' : ''}`);
         LINES.forEach((l, i) => {
@@ -302,6 +307,59 @@ export class UI {
         });
         html += row({ kind: 'sales' }, glyph('sales'), `Vrachtwagens <span class="lv">Lv ${s.sales}</span>`, `${money(prod.transport * E.priceMult(s))}/s · magazijn ${fill(s.goods / prod.storeCap)}${prod.storeFull ? ' <span class="bad-text">vol</span>' : ''}`);
         return { title: 'Je fabriek', sub: `${TIERS[s.tier].name} · ${money(prod.income)}/s`, html };
+      },
+    };
+  }
+
+  weakBox() {
+    const s = this.state;
+    if (!s.lines.some((x) => x > 0)) return '';
+    const c = E.chainBalance(s);
+    const info = {
+      pick: ['orchard', 'De boomgaard plukt te weinig appels', { kind: 'orchard' }],
+      machines: ['fresh', 'Je machines kunnen het niet bijhouden', null],
+      transport: ['sales', 'Je vrachtwagens kunnen het niet bijhouden', { kind: 'sales' }],
+    }[c.weakest];
+    const btn = info[2] ? `<button class="btn small" data-action="station" data-st='${JSON.stringify(info[2])}'>Bekijk</button>` : '';
+    return `<div class="weak-box">${glyph(info[0])}<div><b>Zwakste schakel</b><br><small>${info[1]}</small></div>${btn}</div>`;
+  }
+
+  chainPanel() {
+    this.state.stats.chain = 1;
+    const series = [
+      ['pick', 'Boomgaard plukt', '#3fae4d', 'orchard', { kind: 'orchard' }],
+      ['machines', 'Machines verwerken', '#f08a24', 'fresh', null],
+      ['transport', 'Vrachtwagens vervoeren', '#3d8bef', 'sales', { kind: 'sales' }],
+    ];
+    return {
+      icon: icon('chart'),
+      render: () => {
+        const s = this.state;
+        const c = E.chainBalance(s);
+        const max = Math.max(c.pick, c.machines, c.transport, 1e-9);
+        const bars = series.map(([k, label, color, gl, st]) => {
+          const weak = k === c.weakest;
+          const pct = Math.max(2, Math.round((c[k] / max) * 100));
+          const open = st ? ` data-action="station" data-st='${JSON.stringify(st)}'` : ' data-action="open" data-v="stations"';
+          return `<button class="cb-row ${weak ? 'cb-weak' : ''}"${open}>${glyph(gl)}<span>
+            <span class="cb-top"><span>${label}${weak ? '<span class="tag-weak">zwakste schakel</span>' : ''}</span><b>${fmt(c[k])} appels/s</b></span>
+            <span class="cb-track"><i style="width:${pct}%;background:${color}"></i></span></span></button>`;
+        }).join('');
+        const h = this.history;
+        let chart = '<div class="tip small">De grafiek vult zich terwijl je speelt.</div>';
+        if (h.length >= 2) {
+          const W = 300, H = 120;
+          const top = Math.max(...h.flatMap((p) => [p.pick, p.machines, p.transport]), 1e-9) * 1.1;
+          const path = (k) => h.map((p, j) => `${j ? 'L' : 'M'}${((j / (h.length - 1)) * W).toFixed(1)},${(H - (p[k] / top) * H).toFixed(1)}`).join('');
+          const grid = [0.25, 0.5, 0.75].map((f) => `<line x1="0" x2="${W}" y1="${H * f}" y2="${H * f}" stroke="#eee4d3" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('');
+          const mins = Math.max(1, Math.round(((h.length - 1) * 2) / 60));
+          chart = `<div class="chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}
+            ${series.map(([k, , color]) => `<path d="${path(k)}" fill="none" stroke="${color}" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`).join('')}</svg>
+            <div class="legend">${series.map(([, label, color]) => `<span><i style="background:${color}"></i>${label}</span>`).join('')}<span>laatste ${mins} min</span></div></div>`;
+        }
+        const html = `<div class="chain-bars">${bars}</div>${chart}
+          <div class="tip">Alles is omgerekend naar appels per seconde. De kortste balk is de zwakste schakel: daar loopt je fabriek op vast. Tik op een balk om die te upgraden.</div>`;
+        return { title: 'Ketenbalans', sub: 'Plukken, verwerken en vervoeren', html };
       },
     };
   }
@@ -355,7 +413,6 @@ export class UI {
           perks.push(`Alle inkomsten <b>x${String(next.mult).replace('.', ',')}</b>`);
           if (next.orchard > 1) perks.push(`Boomgaard <b>x${String(next.orchard).replace('.', ',')}</b> appels`);
           if (next.plots > cur.plots) perks.push(`Extra boomgaardperceel (${next.plots} totaal)`);
-          perks.push(`Een veel groter terrein`);
           const can = s.money >= next.cost;
           html += `<div class="card tier-next">
             <div class="tier-name">Volgende: <b>${next.name}</b></div>
@@ -504,17 +561,17 @@ export class UI {
       this.el.inv.textContent = fmt(s.investors);
       this.updateTutorial();
       if (tutorialDone(s)) this.updateGoal(prod.income);
-      this.updateBoost();
       this.updateBadges();
       this.updateVisibility();
       this.refresh();
       this.updateLabelContent();
     }
-    // geld-popup boven het depot
-    if (now - this.lastPop > 1300 && prod.income > 0) {
-      this.lastPop = now;
-      const p = this.game.world.toScreen(this.game.world.stationPos({ kind: 'sales' }).setY(8.5));
-      if (p.visible && p.x > 0 && p.x < window.innerWidth && p.y > 60 && p.y < window.innerHeight) this.float(p.x, p.y, '+' + money(prod.income * 1.3), 'cash');
+    // geschiedenis voor de ketengrafiek (elke 2 seconden, 3 minuten lang)
+    if (now - this.lastSample > 2000 && s.lines.some((x) => x > 0)) {
+      this.lastSample = now;
+      const c = E.chainBalance(s);
+      this.history.push({ pick: c.pick, machines: c.machines, transport: c.transport });
+      if (this.history.length > 91) this.history.shift();
     }
   }
 
@@ -555,7 +612,7 @@ export class UI {
     show('[data-open="stations"]', s.lines[0] > 0);
     show('[data-open="research"]', s.lines[1] > 0 || Object.keys(s.research).length > 0);
     show('[data-open="expand"]', s.lines[1] > 0 || s.tier > 0);
-    show('#btn-boost', tut);
+    show('[data-open="chain"]', s.lines[0] > 0 && tut);
     show('#btn-investors', s.investors > 0 || s.prestiges > 0 || E.pendingInvestors(s) > 0);
   }
 
@@ -571,24 +628,27 @@ export class UI {
     this.el.goal.classList.toggle('done', done);
   }
 
-  updateBoost() {
-    const s = this.state;
-    const now = Date.now();
-    const b = this.el.boostBtn;
-    if (now < s.boostUntil) {
-      this.el.boostLabel.textContent = duration((s.boostUntil - now) / 1000);
-      b.className = 'boost-on';
-      this.el.boostBanner.classList.remove('hidden');
-      this.el.boostTime.textContent = duration((s.boostUntil - now) / 1000);
-    } else if (now < s.boostReadyAt) {
-      this.el.boostLabel.textContent = duration((s.boostReadyAt - now) / 1000);
-      b.className = 'boost-cd';
-      this.el.boostBanner.classList.add('hidden');
-    } else {
-      this.el.boostLabel.textContent = 'Turbo';
-      b.className = 'boost-ready';
-      this.el.boostBanner.classList.add('hidden');
+  // Opbrengst van een vertrekkende vrachtwagen: munten vliegen naar je geldteller.
+  truckCash(world, pos, amount) {
+    const p = world.toScreen(pos.clone().setY(3));
+    if (!p.visible || p.x < 0 || p.x > window.innerWidth || p.y < 0 || p.y > window.innerHeight) return;
+    this.float(p.x, p.y, '+' + money(amount), 'cash');
+    const r = this.el.moneyCard.getBoundingClientRect();
+    const tx = r.left + 32, ty = r.top + r.height / 2;
+    for (let k = 0; k < 6; k++) {
+      const c = document.createElement('div');
+      c.className = 'coin-fly';
+      const sx = p.x + (Math.random() - 0.5) * 40, sy = p.y + (Math.random() - 0.5) * 30;
+      c.style.transform = `translate(${sx}px, ${sy}px)`;
+      document.body.appendChild(c);
+      setTimeout(() => { c.style.transform = `translate(${tx}px, ${ty}px) scale(0.7)`; c.style.opacity = '0'; }, 30 + k * 60);
+      setTimeout(() => c.remove(), 1000 + k * 60);
     }
+    setTimeout(() => {
+      this.el.moneyCard.classList.remove('bump');
+      void this.el.moneyCard.offsetWidth;
+      this.el.moneyCard.classList.add('bump');
+    }, 750);
   }
 
   updateBadges() {
@@ -602,6 +662,9 @@ export class UI {
     const eb = document.querySelector('[data-open="expand"] .badge');
     eb.classList.toggle('hidden', !canTier);
     eb.textContent = '!';
+    const cb = document.querySelector('[data-open="chain"] .badge');
+    cb.classList.toggle('hidden', !(this.game.prod.binFull || this.game.prod.storeFull));
+    cb.textContent = '!';
     const ib = document.querySelector('#btn-investors');
     ib.classList.toggle('glow', E.pendingInvestors(s) >= Math.max(5, s.investors * 0.5));
   }
@@ -625,6 +688,8 @@ export class UI {
         el._st = a.st;
         this.fillLabel(el);
       }
+      const stJson = JSON.stringify(a.st);
+      if (el.dataset.st !== stJson) { el.dataset.st = stJson; el._st = a.st; this.fillLabel(el); }
       const p = w.toScreen(a.pos);
       if (a.st.kind === 'golden') {
         const m = 44;
@@ -677,6 +742,8 @@ export class UI {
       if (!t) return;
       can = s.money >= t.cost;
       html = `<span class="lb-icon tier-ic">${icon('expand')}</span><span>${t.name}<br><b>${money(t.cost)}</b></span>`;
+    } else if (st.kind === 'dock') {
+      html = `<span class="lb-icon">${glyph('sales')}</span><span>Nieuwe laadplek<br><b>level ${st.level}</b></span>`;
     } else if (st.kind === 'golden') {
       html = `<span class="lb-icon">${glyph('gold')}</span><span>Gouden appel!</span>`;
     }

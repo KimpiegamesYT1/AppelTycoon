@@ -253,16 +253,40 @@ export function getBeltTexture() {
 }
 let beltMat = null;
 
-// Lopende band langs lokale +x, van x=0 tot x=length; bovenkant op y=0.8.
-export function conveyor(length, width = 0.8) {
+// Lopende band langs lokale +x, van x=0 tot x=length; bovenkant op y=0.81.
+// Zijkanten: 'pos' = lokale +z, 'neg' = lokale -z. Leuningen kunnen per kant uit,
+// of onderbroken worden (gaps: [[van, tot], ...]) waar een andere band aansluit.
+export function conveyor(length, { width = 0.8, railPos = true, railNeg = true, gapsPos = [], gapsNeg = [], legs = true } = {}) {
   const group = new THREE.Group();
   const b = new Builder();
-  b.box(length, 0.18, width + 0.16, C.metalDark, length / 2, 0.62, 0);
-  b.box(length, 0.1, 0.08, C.yellow, length / 2, 0.78, width / 2 + 0.08);
-  b.box(length, 0.1, 0.08, C.yellow, length / 2, 0.78, -width / 2 - 0.08);
-  for (let x = 0.3; x < length; x += 1.6) {
-    b.box(0.1, 0.62, 0.1, C.metalDark, x, 0, width / 2);
-    b.box(0.1, 0.62, 0.1, C.metalDark, x, 0, -width / 2);
+  const hw = width / 2;
+  // zijprofielen onder het bandoppervlak
+  b.box(length, 0.2, 0.08, C.metalDark, length / 2, 0.6, hw + 0.04);
+  b.box(length, 0.2, 0.08, C.metalDark, length / 2, 0.6, -hw - 0.04);
+  b.box(length, 0.06, width, 0x2e333c, length / 2, 0.68, 0);
+  // eindrollen
+  b.cyl(0.1, width + 0.06, C.metal, 0.05, 0.72, -(width + 0.06) / 2, { seg: 8, rx: Math.PI / 2 });
+  b.cyl(0.1, width + 0.06, C.metal, length - 0.05, 0.72, -(width + 0.06) / 2, { seg: 8, rx: Math.PI / 2 });
+  const rail = (z, gaps) => {
+    let x = 0;
+    const cuts = [...gaps].sort((p, q) => p[0] - q[0]);
+    for (const [g0, g1] of [...cuts, [length, length]]) {
+      const x1 = Math.min(g0, length);
+      if (x1 - x > 0.05) {
+        b.box(x1 - x, 0.12, 0.07, C.yellow, (x + x1) / 2, 0.86, z);
+        for (let px = x + 0.1; px < x1; px += 1.6) b.box(0.06, 0.1, 0.06, C.yellow, px, 0.78, z);
+      }
+      x = Math.max(x, g1);
+    }
+  };
+  if (railPos) rail(hw + 0.06, gapsPos);
+  if (railNeg) rail(-hw - 0.06, gapsNeg);
+  if (legs) {
+    for (let x = 0.4; x < length - 0.1; x += 1.8) {
+      b.box(0.08, 0.5, 0.08, C.metalDark, x, 0, hw);
+      b.box(0.08, 0.5, 0.08, C.metalDark, x, 0, -hw);
+      b.box(0.08, 0.06, width, C.metalDark, x, 0.25, 0);
+    }
   }
   const frame = b.mesh();
   frame.receiveShadow = true;
@@ -277,6 +301,62 @@ export function conveyor(length, width = 0.8) {
   top.receiveShadow = true;
   group.add(top);
   return group;
+}
+
+// Hoekstuk tussen twee banden (niet gedraaid). sides: welke buitenkanten een leuning krijgen: 'n','e','s','w'.
+export function beltCorner(sides, width = 0.8) {
+  const b = new Builder();
+  const hw = width / 2 + 0.08;
+  b.box(width + 0.16, 0.26, width + 0.16, C.metalDark, 0, 0.55, 0);
+  b.box(width, 0.04, width, 0x3b414c, 0, 0.79, 0);
+  for (let i = 0; i < 3; i++) b.cyl(0.06, width, C.metal, -0.25 + i * 0.25, 0.76, -width / 2, { seg: 6, rx: Math.PI / 2 });
+  if (sides.includes('n')) b.box(width + 0.16, 0.12, 0.07, C.yellow, 0, 0.86, -hw + 0.02);
+  if (sides.includes('s')) b.box(width + 0.16, 0.12, 0.07, C.yellow, 0, 0.86, hw - 0.02);
+  if (sides.includes('w')) b.box(0.07, 0.12, width + 0.16, C.yellow, -hw + 0.02, 0.86, 0);
+  if (sides.includes('e')) b.box(0.07, 0.12, width + 0.16, C.yellow, hw - 0.02, 0.86, 0);
+  b.box(0.1, 0.55, 0.1, C.metalDark, 0, 0, 0);
+  return b.mesh();
+}
+
+// Palletstelling met drie verdiepingen; bays = aantal vakken naast elkaar (langs x).
+export function palletRack(bays) {
+  const b = new Builder();
+  const bw = 1.1;
+  for (let i = 0; i <= bays; i++) {
+    b.box(0.1, 2.6, 0.1, C.blue, i * bw, 0, -0.45);
+    b.box(0.1, 2.6, 0.1, C.blue, i * bw, 0, 0.45);
+  }
+  for (const y of [0.05, 0.9, 1.75]) {
+    b.box(bays * bw + 0.1, 0.08, 0.1, C.orange, (bays * bw) / 2, y, -0.45);
+    b.box(bays * bw + 0.1, 0.08, 0.1, C.orange, (bays * bw) / 2, y, 0.45);
+    b.box(bays * bw, 0.04, 0.9, 0xc9b28a, (bays * bw) / 2, y + 0.06, 0);
+  }
+  return b.mesh();
+}
+
+// Laaddeur met een rolluik dat open (omhoog) of dicht kan.
+export function dockDoor() {
+  const g = new THREE.Group();
+  const b = new Builder();
+  b.box(0.25, 3.0, 0.25, C.metalDark, 0, 0, -1.35);
+  b.box(0.25, 3.0, 0.25, C.metalDark, 0, 0, 1.35);
+  b.box(0.3, 0.45, 2.95, C.metalDark, 0, 3.0, 0);
+  b.box(0.6, 0.18, 2.6, 0x2b2f3a, 0.35, 0.3, 0);
+  for (const z of [-1.1, 1.1]) b.box(0.25, 0.4, 0.3, 0xffc43d, 0.55, 0.2, z);
+  g.add(b.mesh());
+  const sb = new Builder();
+  for (let i = 0; i < 6; i++) sb.box(0.08, 0.42, 2.5, i % 2 ? 0xd7dbe0 : 0xc3c8ce, 0, i * 0.44, 0);
+  const shutter = sb.mesh();
+  shutter.position.set(0.05, 0.3, 0);
+  g.add(shutter);
+  g.userData.shutter = shutter;
+  const lb = new Builder();
+  lb.box(0.12, 0.25, 0.25, 0x4cff7a, 0, 0, 0);
+  const lamp = lb.mesh({ shadow: false });
+  lamp.position.set(0.15, 3.25, -1.0);
+  g.add(lamp);
+  g.userData.lamp = lamp;
+  return g;
 }
 
 export function crateStack(seed = 1, n = 4) {

@@ -18,13 +18,16 @@ export const ORCHARD = {
 
 export const SALES = {
   name: 'Vrachtwagens',
-  baseRate: 1.6,      // goederen (basiswaarde in euro) per seconde per level
+  baseRate: 1.6,      // goederen (basiswaarde in euro) per seconde per level, per vrachtwagen
   rateGrowth: 1.07,   // extra groei per level, zodat vrachtwagens dure producten bijhouden
   baseCost: 25,
   growth: 1.17,
   storeSeconds: 30,   // het magazijn houdt 30 seconden transport vast
   storeMin: 20,
 };
+
+// Op deze levels krijgt het magazijn een extra laadplek met een extra vrachtwagen.
+export const DOCK_LEVELS = [10, 20, 50, 100, 200];
 
 // Productielijnen. value = prijs per product, apples = appels per product,
 // rate = producten per seconde per level, cost = prijs eerste upgrade.
@@ -90,8 +93,6 @@ export const START_MONEY = 10;
 export const INVESTOR_BONUS = 0.05;
 export const INVESTOR_BASE = 3e6;   // run-verdiensten voor de eerste investeerder
 
-// Turbo: tijdelijke productieboost.
-export const BOOST = { mult: 2, duration: 120, cooldown: 300 };
 
 // Gouden appel: verschijnt af en toe in de boomgaard.
 export const GOLDEN = { minDelay: 45, maxDelay: 110, lifetime: 20, incomeSeconds: 45, minReward: 20 };
