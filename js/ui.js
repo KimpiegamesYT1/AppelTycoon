@@ -209,8 +209,6 @@ export class UI {
         if (st.kind === 'orchard') after.orchard += q.count;
         else if (st.kind === 'sales') after.sales += q.count;
         else after.lines[st.i] += q.count;
-        const incNow = E.incomePerSecond(s, now);
-        const incNext = E.incomePerSecond(after, now);
         const goTo = (kind, label) => `<button class="btn small" data-action="station" data-st='{"kind":"${kind}"}'>${label}</button>`;
         if (st.kind === 'orchard') {
           title = ORCHARD.name;
@@ -244,13 +242,19 @@ export class UI {
           rows.push(['Prijs per stuk', money(l.value * E.priceMult(s))]);
           rows.push(['Appels per stuk', String(l.apples)]);
           rows.push(['Draait op', percent(lp.efficiency || 0)]);
+          // wat déze lijn oplevert, nu en na de upgrade (als de keten het kan bijhouden)
+          const ssNow = E.computeProduction(s, now, true);
+          const ssNext = E.computeProduction(after, now, true);
+          rows.push(['Verdient', money(ssNow.lines[st.i].income) + '/s', money(ssNext.lines[st.i].income) + '/s']);
+          if (lp.status !== 'full' && ssNext.output > ssNext.transport * 1.001) {
+            extra = `<div class="tip">Let op: je vrachtwagens kunnen niet alles meer vervoeren. Upgrade ze ook, anders loopt het magazijn vol. ${goTo('sales', 'Naar vrachtwagens')}</div>`;
+          }
           if (lp.status === 'full') {
             extra = `<div class="tip warn">${icon('alert')} Vastgelopen: het magazijn is vol. De vrachtwagens kunnen het niet bijhouden. ${goTo('sales', 'Naar vrachtwagens')}</div>`;
           } else if (lp.status === 'apples') {
             extra = `<div class="tip warn">${icon('alert')} Te weinig appels! Deze machine kan ${fmt(lp.max)}/s maken maar krijgt genoeg voor ${fmt(lp.rate)}/s. ${goTo('orchard', 'Naar boomgaard')}</div>`;
           }
         }
-        rows.push(['Totaal inkomen', money(incNow) + '/s', money(incNext) + '/s']);
         const html = `
           ${this.milestoneBar(level)}
           <div class="stats">${rows.map((r) => `<div class="row"><span>${r[0]}</span><b>${r[1]}</b>${r[2] ? `<em>→ ${r[2]}</em>` : ''}</div>`).join('')}</div>
@@ -622,6 +626,14 @@ export class UI {
         this.fillLabel(el);
       }
       const p = w.toScreen(a.pos);
+      if (a.st.kind === 'golden') {
+        const m = 44;
+        const out = p.x < m || p.x > window.innerWidth - m || p.y < 130 || p.y > window.innerHeight - 100;
+        p.x = Math.min(window.innerWidth - m, Math.max(m, p.x));
+        p.y = Math.min(window.innerHeight - 100, Math.max(130, p.y));
+        p.visible = true;
+        el.classList.toggle('edge', out);
+      }
       const hide = !p.visible || (zoomedOut && a.st.kind === 'line');
       el.style.display = hide ? 'none' : '';
       el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
@@ -666,7 +678,7 @@ export class UI {
       can = s.money >= t.cost;
       html = `<span class="lb-icon tier-ic">${icon('expand')}</span><span>${t.name}<br><b>${money(t.cost)}</b></span>`;
     } else if (st.kind === 'golden') {
-      html = `<span class="lb-icon">${glyph('gold')}</span>`;
+      html = `<span class="lb-icon">${glyph('gold')}</span><span>Gouden appel!</span>`;
     }
     if (el._html !== html) { el.innerHTML = html; el._html = html; }
     el.classList.toggle('can', can);

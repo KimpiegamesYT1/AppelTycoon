@@ -94,7 +94,7 @@ export const INVESTOR_BASE = 3e6;   // run-verdiensten voor de eerste investeerd
 export const BOOST = { mult: 2, duration: 120, cooldown: 300 };
 
 // Gouden appel: verschijnt af en toe in de boomgaard.
-export const GOLDEN = { minDelay: 60, maxDelay: 140, lifetime: 12, incomeSeconds: 45, minReward: 20 };
+export const GOLDEN = { minDelay: 45, maxDelay: 110, lifetime: 20, incomeSeconds: 45, minReward: 20 };
 
 // Offline-inkomen.
 export const OFFLINE = { maxHours: 3, rate: 0.5 };

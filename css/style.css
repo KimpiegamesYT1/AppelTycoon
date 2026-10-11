@@ -468,7 +468,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .label-unlock, .label-tier { padding: 4px 10px 4px 6px; font-size: 12px; line-height: 1.15; background: rgba(255, 243, 224, 0.97); }
 .label-unlock b, .label-tier b { font-size: 14px; color: var(--orange-d); }
 .label-unlock.can, .label-tier.can { border-color: var(--orange); animation: labelBob 1s ease-in-out infinite; }
-.label-golden { background: var(--gold); animation: labelBob 0.6s ease-in-out infinite; }
+.label-golden { background: var(--gold); padding: 4px 10px 4px 6px; font-size: 13px; animation: labelBob 0.6s ease-in-out infinite; box-shadow: 0 0 0 4px rgba(255, 201, 40, 0.45), 0 3px 0 rgba(0, 0, 0, 0.18); z-index: 3; }
+.label-golden.edge::after { display: none; }
 /* labels worden met transform op hun plek gezet; daarom stuiteren via de losse translate-eigenschap */
 @keyframes labelBob { 50% { translate: 0 -4px; } }
 

@@ -252,6 +252,8 @@ function frame(t) {
     if (game.nextGolden <= 0) {
       world.showGolden(true);
       game.goldenLeft = GOLDEN.lifetime;
+      sfx.coin();
+      ui.toast('Er hangt een gouden appel in de boomgaard! Tik erop voor een bonus.', glyph('gold'));
     }
   }
 

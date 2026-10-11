@@ -767,8 +767,9 @@ export class World {
   showGolden(on) {
     if (on) {
       const slot = this.treeSlots[Math.floor(Math.random() * Math.max(1, this.treeShown))];
-      this.golden.position.set(slot.x, 3.8, slot.z);
+      this.golden.position.set(slot.x, 4.3, slot.z);
       this.golden.visible = true;
+      this.golden.scale.setScalar(1.6);
       this.goldenBorn = this.time;
     } else {
       this.golden.visible = false;
@@ -1016,7 +1017,7 @@ export class World {
     // gouden appel
     if (this.golden.visible) {
       this.golden.rotation.y += dt * 2;
-      this.golden.position.y = 3.8 + Math.sin(t * 3) * 0.25;
+      this.golden.position.y = 4.3 + Math.sin(t * 3) * 0.25;
       this.goldenRing.scale.setScalar(1 + Math.sin(t * 6) * 0.15);
     }
 
