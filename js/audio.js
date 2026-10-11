@@ -41,3 +41,36 @@ export const sfx = {
   boost() { if (enabled) tone(220, 0, 0.5, 'sawtooth', 0.06, 4); },
   prestige() { if (enabled) [262, 330, 392, 523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.09, 0.3, 'triangle', 0.1)); },
 };
+
+// ---------- Achtergrondmuziek ----------
+// Browsers staan pas geluid toe na een tik of toets, dus we starten bij de eerste interactie.
+let music = null;
+let musicOn = false;
+let unlocked = false;
+
+export function initMusic(url, on) {
+  musicOn = on;
+  music = new Audio(url);
+  music.loop = true;
+  music.volume = 0.35;
+  music.preload = 'auto';
+  const unlock = () => {
+    unlocked = true;
+    if (musicOn && !document.hidden) music.play().catch(() => {});
+    window.removeEventListener('pointerdown', unlock);
+    window.removeEventListener('keydown', unlock);
+  };
+  window.addEventListener('pointerdown', unlock);
+  window.addEventListener('keydown', unlock);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) music.pause();
+    else if (musicOn && unlocked) music.play().catch(() => {});
+  });
+}
+
+export function setMusic(on) {
+  musicOn = on;
+  if (!music) return;
+  if (on && unlocked) music.play().catch(() => {});
+  else music.pause();
+}

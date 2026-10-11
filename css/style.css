@@ -35,6 +35,12 @@ html, body {
   overscroll-behavior: none;
 }
 
+.ic, .gl { width: 1em; height: 1em; display: inline-block; vertical-align: -0.15em; flex-shrink: 0; }
+.gold-ic { color: var(--gold); }
+.red-ic { color: var(--red); }
+.muted { color: var(--ink-soft); }
+.warn-text { color: var(--orange-d); }
+
 button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
 
 #scene {
@@ -100,6 +106,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18);
 }
 .chip b { font-size: 17px; }
+.chip span, .round span { display: flex; font-size: 20px; }
 .chip.glow { animation: glow 1.2s ease-in-out infinite; background: #6b4ea8; }
 @keyframes glow { 50% { box-shadow: 0 0 0 4px rgba(255, 201, 40, 0.7), 0 4px 0 rgba(0, 0, 0, 0.18); } }
 .round { padding: 0; }
@@ -125,7 +132,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 .goal.done { background: #eaffdf; animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 4px rgba(76, 195, 90, 0.55), 0 4px 0 rgba(0, 0, 0, 0.12); } }
-.goal-icon { font-size: 22px; }
+.goal-icon { font-size: 24px; color: var(--red); display: flex; }
 .goal-body { flex: 1; min-width: 0; }
 .goal-body small { color: var(--ink-soft); }
 #goal-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -170,7 +177,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   transition: transform 0.08s;
 }
 #dock button:active { transform: translateY(3px); box-shadow: 0 2px 0 #d4c6ae; }
-#dock button span { font-size: 26px; line-height: 1; }
+#dock button span { font-size: 26px; line-height: 1; display: flex; }
 #dock button small { font-size: 12px; font-weight: 600; margin-top: 3px; }
 #dock button.active { background: #fff1c9; }
 #dock .badge {
@@ -314,6 +321,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .tip.warn { background: #fff0e6; color: #8a3b00; }
 .tip.small { font-size: 12.5px; }
 .tip .btn { margin-top: 6px; }
+.tip .ic { font-size: 16px; }
 
 .list-row {
   display: flex;
@@ -352,6 +360,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .price { font-weight: 700; color: var(--ink-soft); font-size: 14px; }
 .big-icon { font-size: 34px; }
 .owned { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.tag .ic { stroke-width: 3; }
 .tag { background: #e7f7e5; color: #2c7a35; border-radius: 10px; padding: 3px 8px; font-size: 12px; }
 
 .tier-next { flex-direction: column; align-items: stretch; background: #fff8ec; border-color: #ffd29a; }
@@ -360,6 +369,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .eta { color: var(--ink-soft); text-align: center; margin-top: 6px; display: block; }
 .tier-path { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; margin-top: 12px; }
 .tp { background: var(--panel-2); border-radius: 10px; padding: 6px 8px; font-size: 12.5px; display: flex; gap: 6px; align-items: center; color: var(--ink-soft); }
+.tp span .ic { font-size: 12px; stroke-width: 3; }
 .tp span { width: 20px; height: 20px; border-radius: 50%; background: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
 .tp.done { background: #e7f7e5; color: #2c7a35; }
 .tp.cur { background: var(--orange); color: #fff; }
@@ -399,7 +409,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   border-top-color: rgba(255, 250, 242, 0.95);
 }
 .lb-icon { font-size: 18px; }
-.label .up { color: #fff; background: var(--green); border-radius: 50%; width: 18px; height: 18px; display: grid; place-items: center; font-size: 10px; animation: bob 0.8s infinite; }
+.label .up { color: #fff; background: var(--green); border-radius: 50%; width: 18px; height: 18px; display: grid; place-items: center; font-size: 12px; animation: bob 0.8s infinite; }
+.label .up .ic { stroke-width: 3; }
+.tier-ic { color: var(--orange-d); }
 .label .warn-dot { color: #fff; background: var(--orange); border-radius: 50%; width: 18px; height: 18px; display: grid; place-items: center; font-size: 12px; }
 .label.can { border-color: var(--green); }
 .label-unlock, .label-tier { padding: 4px 10px 4px 6px; font-size: 12px; line-height: 1.15; background: rgba(255, 243, 224, 0.97); }
@@ -453,7 +465,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   transition: opacity 0.4s, transform 0.4s;
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.15);
 }
-.toast span { font-size: 20px; }
+.toast .ic, .toast .gl { font-size: 20px; color: #ffd84d; }
 .toast.out { opacity: 0; transform: translateY(-10px); }
 @keyframes toastIn { from { opacity: 0; transform: translateY(-12px) scale(0.9); } }
 
@@ -496,7 +508,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   transition: opacity 0.5s;
 }
 #loading small { font-size: 15px; color: var(--ink-soft); font-weight: 500; }
-#loading .logo { font-size: 80px; animation: bob 1s infinite; }
+#loading .logo { width: 96px; height: 96px; margin-bottom: 8px; animation: bob 1s infinite; }
 #loading.gone { opacity: 0; pointer-events: none; }
 
 @media (max-width: 420px) {

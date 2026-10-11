@@ -9,7 +9,6 @@ export const RAW_APPLE_PRICE = 0.25;
 
 export const ORCHARD = {
   name: 'Boomgaard',
-  icon: '🌳',
   baseRate: 1.2,      // appels per seconde per level
   baseCost: 10,
   growth: 1.13,
@@ -17,7 +16,6 @@ export const ORCHARD = {
 
 export const SALES = {
   name: 'Verkoop & Marketing',
-  icon: '🚚',
   perLevel: 0.12,     // +12% verkoopprijs per level
   baseCost: 60,
   growth: 1.19,
@@ -26,14 +24,14 @@ export const SALES = {
 // Productielijnen. value = prijs per product, apples = appels per product,
 // rate = producten per seconde per level, cost = prijs eerste upgrade.
 export const LINES = [
-  { id: 'fresh',   name: 'Verse Appels',  machine: 'Sorteer- & inpakstation', icon: '🍎', value: 1,      apples: 1,  rate: 1.0,  cost: 6,      unlock: 0,       color: 0xe8423f },
-  { id: 'juice',   name: 'Appelsap',      machine: 'Sappers',                 icon: '🧃', value: 9,      apples: 2,  rate: 0.5,  cost: 60,     unlock: 60,      color: 0xf2c14e },
-  { id: 'sauce',   name: 'Appelmoes',     machine: 'Kookketel',               icon: '🥣', value: 55,     apples: 3,  rate: 0.4,  cost: 700,    unlock: 900,     color: 0xf6e7b0 },
-  { id: 'chips',   name: 'Appelchips',    machine: 'Droogoven',               icon: '🥨', value: 320,    apples: 4,  rate: 0.32, cost: 8e3,    unlock: 12e3,    color: 0xd9a35b },
-  { id: 'pie',     name: 'Appeltaart',    machine: 'Bakkerij',                icon: '🥧', value: 2200,   apples: 6,  rate: 0.25, cost: 1.1e5,  unlock: 2.2e5,   color: 0xc9853e },
-  { id: 'cider',   name: 'Appelcider',    machine: 'Brouwerij',               icon: '🍾', value: 16000,  apples: 8,  rate: 0.2,  cost: 1.6e6,  unlock: 4e6,     color: 0xb5d36b },
-  { id: 'syrup',   name: 'Appelstroop',   machine: 'Stroopkokerij',           icon: '🍯', value: 130000, apples: 12, rate: 0.15, cost: 2.8e7,  unlock: 9e7,     color: 0x7a3b1d },
-  { id: 'candy',   name: 'Karamelappels', machine: 'Karamelfabriek',          icon: '🍭', value: 1.2e6,  apples: 15, rate: 0.12, cost: 5e8,    unlock: 2.5e9,   color: 0xff6fa8 },
+  { id: 'fresh',   name: 'Verse Appels',  machine: 'Sorteer- & inpakstation', value: 1,      apples: 1,  rate: 1.0,  cost: 6,      unlock: 0,       color: 0xe8423f },
+  { id: 'juice',   name: 'Appelsap',      machine: 'Sappers', value: 9,      apples: 2,  rate: 0.5,  cost: 60,     unlock: 60,      color: 0xf2c14e },
+  { id: 'sauce',   name: 'Appelmoes',     machine: 'Kookketel', value: 55,     apples: 3,  rate: 0.4,  cost: 700,    unlock: 900,     color: 0xf6e7b0 },
+  { id: 'chips',   name: 'Appelchips',    machine: 'Droogoven', value: 320,    apples: 4,  rate: 0.32, cost: 8e3,    unlock: 12e3,    color: 0xd9a35b },
+  { id: 'pie',     name: 'Appeltaart',    machine: 'Bakkerij', value: 2200,   apples: 6,  rate: 0.25, cost: 1.1e5,  unlock: 2.2e5,   color: 0xc9853e },
+  { id: 'cider',   name: 'Appelcider',    machine: 'Brouwerij', value: 16000,  apples: 8,  rate: 0.2,  cost: 1.6e6,  unlock: 4e6,     color: 0xb5d36b },
+  { id: 'syrup',   name: 'Appelstroop',   machine: 'Stroopkokerij', value: 130000, apples: 12, rate: 0.15, cost: 2.8e7,  unlock: 9e7,     color: 0x7a3b1d },
+  { id: 'candy',   name: 'Karamelappels', machine: 'Karamelfabriek', value: 1.2e6,  apples: 15, rate: 0.12, cost: 5e8,    unlock: 2.5e9,   color: 0xff6fa8 },
 ];
 export const LINE_GROWTH = 1.14;
 

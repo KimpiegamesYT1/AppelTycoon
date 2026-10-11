@@ -15,7 +15,7 @@ Online zetten met GitHub Pages: **Settings → Pages → Deploy from a branch**,
 
 ## Gameplay
 
-- **Boomgaard** – levert appels. Elke productielijn heeft appels nodig; te weinig appels en je lijnen staan stil (⚠️). Overtollige appels worden los verkocht.
+- **Boomgaard** – levert appels. Elke productielijn heeft appels nodig; te weinig appels en je lijnen staan stil. Overtollige appels worden los verkocht.
 - **8 productielijnen** – Verse Appels, Appelsap, Appelmoes, Appelchips, Appeltaart, Appelcider, Appelstroop en Karamelappels. Duurdere producten leveren meer op per appel en krijgen voorrang.
 - **Verkoop & Marketing** – verhoogt de prijs van alle producten; vrachtwagens rijden af en aan.
 - **Mijlpalen** – op level 25, 50, 100, 150, … verdubbelt de productie van een station.
@@ -42,6 +42,8 @@ Richtwaarden voor een eerste ronde: Appelsap na ~45 s, Werkplaats na ~2,5 min, F
 - [Three.js](https://threejs.org) r170 (meegeleverd in `vendor/`, MIT-licentie)
 - Low-poly modellen worden uit simpele vormen opgebouwd en samengevoegd tot één mesh met vertex-kleuren; producten op de banden gebruiken `InstancedMesh`.
 - Voortgang wordt in `localStorage` bewaard.
+- Achtergrondmuziek: `assets/audio/factory-flow.mp3` ("Factory Flow"). Start na de eerste tik (browserregel) en kan uit in de instellingen.
+- Iconen zijn eigen inline SVG's (`js/icons.js`).
 
 ```
 index.html

@@ -4,6 +4,7 @@ import { LINES, TIERS, RESEARCH, ORCHARD, SALES, BOOST, INVESTOR_BONUS, INVESTOR
 import { fmt, money, duration, percent } from './format.js';
 import { goalAt, goalProgress, goalReward } from './goals.js';
 import { sfx } from './audio.js';
+import { icon, glyph, stationGlyph } from './icons.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -25,6 +26,7 @@ export class UI {
       boostBanner: $('#boost-banner'), boostTime: $('#boost-time'),
     };
 
+    document.querySelectorAll('[data-icon]').forEach((el) => { el.innerHTML = icon(el.dataset.icon); });
     document.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => {
       sfx.click();
       const what = b.dataset.open;
@@ -35,7 +37,7 @@ export class UI {
     $('#btn-settings').addEventListener('click', () => { sfx.click(); this.open('settings'); });
     this.el.boostBtn.addEventListener('click', () => this.game.boost());
     this.el.goalClaim.addEventListener('click', () => this.game.claimGoal());
-    this.el.goal.addEventListener('click', (e) => { if (e.target !== this.el.goalClaim) this.goalHint(); });
+    this.el.goal.addEventListener('click', (e) => { if (!this.el.goalClaim.contains(e.target)) this.goalHint(); });
 
     // klikken in panelen via data-action
     const onAction = (e) => {
@@ -100,8 +102,9 @@ export class UI {
       case 'prestige': this.closeModal(); g.doPrestige(); break;
       case 'modal-close': this.closeModal(); break;
       case 'sound': g.setSound(!this.state.settings.sound); break;
+      case 'music': g.setMusic(!this.state.settings.music); break;
       case 'quality': g.setQuality(this.state.settings.quality === 'high' ? 'low' : 'high'); break;
-      case 'save': g.save(); this.toast('Spel opgeslagen', '💾'); break;
+      case 'save': g.save(); this.toast('Spel opgeslagen', 'save'); break;
       case 'reset-confirm': this.confirmReset(); break;
       case 'reset': g.hardReset(); break;
       case 'offline-claim': this.closeModal(); g.claimOffline(); break;
@@ -128,7 +131,7 @@ export class UI {
       <div class="sheet-head">
         <div class="sheet-icon">${this.panel.icon}</div>
         <div class="sheet-title"><h2></h2><div class="sheet-sub"></div></div>
-        <button class="round close" data-action="close" aria-label="Sluiten">✕</button>
+        <button class="round close" data-action="close" aria-label="Sluiten">${icon('close')}</button>
       </div>
       <div class="sheet-body"></div>`;
     this.el.sheet.classList.remove('hidden');
@@ -187,7 +190,7 @@ export class UI {
 
   stationPanel(st) {
     return {
-      icon: st.kind === 'orchard' ? ORCHARD.icon : st.kind === 'sales' ? SALES.icon : LINES[st.i].icon,
+      icon: stationGlyph(st, LINES),
       render: () => {
         const s = this.state;
         const now = Date.now();
@@ -203,35 +206,35 @@ export class UI {
         const incNext = E.incomePerSecond(after, now);
         if (st.kind === 'orchard') {
           title = ORCHARD.name;
-          rows.push(['🍎 Appels per seconde', fmt(E.orchardRate(s)), fmt(E.orchardRate(s, level + q.count))]);
-          rows.push(['🏭 Gebruikt door lijnen', fmt(prod.demand) + '/s']);
-          rows.push(['🧺 Overschot (los verkocht)', fmt(prod.spare) + '/s']);
+          rows.push(['Appels per seconde', fmt(E.orchardRate(s)), fmt(E.orchardRate(s, level + q.count))]);
+          rows.push(['Gebruikt door lijnen', fmt(prod.demand) + '/s']);
+          rows.push(['Overschot (los verkocht)', fmt(prod.spare) + '/s']);
           if (prod.spare < 0.01 * prod.supply || prod.lines.some((l) => l.max > 0 && l.efficiency < 0.98)) {
-            extra = `<div class="tip warn">⚠️ Je lijnen hebben meer appels nodig dan de boomgaard levert. Upgraden loont!</div>`;
+            extra = `<div class="tip warn">${icon('alert')} Je lijnen hebben meer appels nodig dan de boomgaard levert. Upgraden loont!</div>`;
           } else {
-            extra = `<div class="tip">💡 Elke lijn heeft appels nodig. Houd de boomgaard groot genoeg voor al je productielijnen.</div>`;
+            extra = `<div class="tip">Elke lijn heeft appels nodig. Houd de boomgaard groot genoeg voor al je productielijnen.</div>`;
           }
         } else if (st.kind === 'sales') {
           title = SALES.name;
-          rows.push(['💶 Verkoopbonus', 'x' + fmt(E.salesMult(s)), 'x' + fmt(E.salesMult(s, level + q.count))]);
-          rows.push(['🔬 Onderzoek', 'x' + fmt(E.researchMult(s, 'all'))]);
-          rows.push(['🏗️ Uitbreidingen', 'x' + fmt(E.tierIncomeMult(s))]);
-          rows.push(['⭐ Investeerders', 'x' + fmt(E.investorMult(s))]);
-          extra = `<div class="tip">💡 Verkoop & Marketing verhoogt de prijs van <b>alle</b> producten.</div>`;
+          rows.push(['Verkoopbonus', 'x' + fmt(E.salesMult(s)), 'x' + fmt(E.salesMult(s, level + q.count))]);
+          rows.push(['Onderzoek', 'x' + fmt(E.researchMult(s, 'all'))]);
+          rows.push(['Uitbreidingen', 'x' + fmt(E.tierIncomeMult(s))]);
+          rows.push(['Investeerders', 'x' + fmt(E.investorMult(s))]);
+          extra = `<div class="tip">Verkoop & Marketing verhoogt de prijs van <b>alle</b> producten.</div>`;
         } else {
           const l = LINES[st.i];
           const lp = prod.lines[st.i];
           title = l.name;
-          rows.push([`${l.icon} Productie`, fmt(lp.rate) + '/s', fmt(E.lineRate(after, st.i)) + '/s max']);
-          rows.push(['💶 Prijs per stuk', money(l.value * E.priceMult(s) / (E.isBoosted(s, now) ? BOOST.mult : 1))]);
-          rows.push(['🍎 Appels per stuk', String(l.apples)]);
-          rows.push(['📈 Efficiëntie', percent(lp.efficiency || 0)]);
+          rows.push(['Productie', fmt(lp.rate) + '/s', fmt(E.lineRate(after, st.i)) + '/s max']);
+          rows.push(['Prijs per stuk', money(l.value * E.priceMult(s) / (E.isBoosted(s, now) ? BOOST.mult : 1))]);
+          rows.push(['Appels per stuk', String(l.apples)]);
+          rows.push(['Efficiëntie', percent(lp.efficiency || 0)]);
           if (lp.efficiency < 0.98) {
-            extra = `<div class="tip warn">⚠️ Te weinig appels! Deze lijn kan ${fmt(lp.max)}/s maken maar krijgt maar genoeg voor ${fmt(lp.rate)}/s.
-              <button class="btn small" data-action="station" data-st='{"kind":"orchard"}'>🌳 Naar boomgaard</button></div>`;
+            extra = `<div class="tip warn">${icon('alert')} Te weinig appels! Deze lijn kan ${fmt(lp.max)}/s maken maar krijgt maar genoeg voor ${fmt(lp.rate)}/s.
+              <button class="btn small" data-action="station" data-st='{"kind":"orchard"}'>Naar boomgaard</button></div>`;
           }
         }
-        rows.push(['💰 Totaal inkomen', money(incNow) + '/s', money(incNext) + '/s']);
+        rows.push(['Totaal inkomen', money(incNow) + '/s', money(incNext) + '/s']);
         const html = `
           ${this.milestoneBar(level)}
           <div class="stats">${rows.map((r) => `<div class="row"><span>${r[0]}</span><b>${r[1]}</b>${r[2] ? `<em>→ ${r[2]}</em>` : ''}</div>`).join('')}</div>
@@ -244,7 +247,7 @@ export class UI {
 
   stationsPanel() {
     return {
-      icon: '🏭',
+      icon: icon('factory'),
       render: () => {
         const s = this.state;
         const prod = this.game.prod;
@@ -260,23 +263,23 @@ export class UI {
           </div>`;
         };
         let html = this.amountToggle();
-        html += row({ kind: 'orchard' }, ORCHARD.icon, `Boomgaard <span class="lv">Lv ${s.orchard}</span>`, `${fmt(prod.supply)} appels/s · ${fmt(prod.spare)} over`);
+        html += row({ kind: 'orchard' }, glyph('orchard'), `Boomgaard <span class="lv">Lv ${s.orchard}</span>`, `${fmt(prod.supply)} appels/s · ${fmt(prod.spare)} over`);
         LINES.forEach((l, i) => {
           if (s.lines[i] > 0) {
             const lp = prod.lines[i];
-            const warn = lp.efficiency < 0.98 ? ' ⚠️' : '';
-            html += row({ kind: 'line', i }, l.icon, `${l.name} <span class="lv">Lv ${s.lines[i]}</span>`, `${fmt(lp.rate)}/s · ${money(lp.income)}/s${warn}`);
+            const warn = lp.efficiency < 0.98 ? ' · <span class="warn-text">te weinig appels</span>' : '';
+            html += row({ kind: 'line', i }, glyph(l.id), `${l.name} <span class="lv">Lv ${s.lines[i]}</span>`, `${fmt(lp.rate)}/s · ${money(lp.income)}/s${warn}`);
           } else if (E.lineUnlockable(s, i)) {
             const can = s.money >= l.unlock;
-            html += `<div class="list-row locked"><span class="li-icon">${l.icon}</span><span class="li-text"><b>${l.name}</b><small>Nieuwe productielijn</small></span>
+            html += `<div class="list-row locked"><span class="li-icon">${glyph(l.id)}</span><span class="li-text"><b>${l.name}</b><small>Nieuwe productielijn</small></span>
               <button class="btn orange small ${can ? '' : 'disabled'}" data-action="unlock" data-i="${i}">Open<br><small>${money(l.unlock)}</small></button></div>`;
           } else if (s.lines[i] === 0 && (i === 0 || s.lines[i - 1] > 0)) {
             const need = TIERS.findIndex((t) => t.slots > i);
-            html += `<div class="list-row locked dim"><span class="li-icon">🔒</span><span class="li-text"><b>${l.name}</b><small>Vereist uitbreiding: ${TIERS[need].name}</small></span>
-              <button class="btn small" data-action="open" data-v="expand">🏗️</button></div>`;
+            html += `<div class="list-row locked dim"><span class="li-icon muted">${icon('lock')}</span><span class="li-text"><b>${l.name}</b><small>Vereist uitbreiding: ${TIERS[need].name}</small></span>
+              <button class="btn small" data-action="open" data-v="expand">Bekijk</button></div>`;
           }
         });
-        html += row({ kind: 'sales' }, SALES.icon, `Verkoop & Marketing <span class="lv">Lv ${s.sales}</span>`, `prijs x${fmt(E.salesMult(s))}`);
+        html += row({ kind: 'sales' }, glyph('sales'), `Verkoop & Marketing <span class="lv">Lv ${s.sales}</span>`, `prijs x${fmt(E.salesMult(s))}`);
         return { title: 'Je fabriek', sub: `${TIERS[s.tier].name} · ${money(prod.income)}/s`, html };
       },
     };
@@ -284,14 +287,14 @@ export class UI {
 
   researchPanel() {
     return {
-      icon: '🔬',
+      icon: icon('flask'),
       render: () => {
         const s = this.state;
         const avail = RESEARCH.filter((r) => E.researchAvailable(s, r)).sort((a, b) => a.cost - b.cost);
         const locked = RESEARCH.filter((r) => !s.research[r.id] && !E.researchAvailable(s, r));
         const owned = RESEARCH.filter((r) => s.research[r.id]);
         let html = '';
-        if (avail.length === 0 && locked.length === 0) html += `<div class="tip">🎉 Alles onderzocht!</div>`;
+        if (avail.length === 0 && locked.length === 0) html += `<div class="tip">Alles onderzocht!</div>`;
         html += avail.map((r) => {
           const can = s.money >= r.cost;
           return `<div class="card research">
@@ -300,9 +303,9 @@ export class UI {
         }).join('');
         html += locked.slice(0, 3).map((r) => {
           const line = LINES.find((l) => l.id === r.req);
-          return `<div class="card research dim"><div class="card-text"><b>🔒 ${r.name}</b><small>${r.desc} · vereist ${line.name}</small></div><span class="price">${money(r.cost)}</span></div>`;
+          return `<div class="card research dim"><div class="card-text"><b>${r.name}</b><small>${r.desc} · vereist ${line.name}</small></div><span class="price">${money(r.cost)}</span></div>`;
         }).join('');
-        if (owned.length) html += `<div class="owned">${owned.map((r) => `<span class="tag">✓ ${r.name}</span>`).join('')}</div>`;
+        if (owned.length) html += `<div class="owned">${owned.map((r) => `<span class="tag">${icon('check')} ${r.name}</span>`).join('')}</div>`;
         return { title: 'Onderzoek', sub: `${owned.length}/${RESEARCH.length} voltooid`, html };
       },
     };
@@ -310,7 +313,7 @@ export class UI {
 
   expandPanel() {
     return {
-      icon: '🏗️',
+      icon: icon('expand'),
       render: () => {
         const s = this.state;
         const next = E.nextTier(s);
@@ -320,18 +323,18 @@ export class UI {
         LINES.forEach((l, i) => {
           if (E.lineUnlockable(s, i)) {
             const can = s.money >= l.unlock;
-            html += `<div class="card highlight"><div class="big-icon">${l.icon}</div><div class="card-text"><b>Nieuwe lijn: ${l.name}</b>
+            html += `<div class="card highlight"><div class="big-icon">${glyph(l.id)}</div><div class="card-text"><b>Nieuwe lijn: ${l.name}</b>
               <small>${l.machine} · ${l.apples} appels per product · ${money(l.value)} per stuk</small></div>
               <button class="btn orange ${can ? '' : 'disabled'}" data-action="unlock" data-i="${i}">${money(l.unlock)}</button></div>`;
           }
         });
         if (next) {
           const perks = [];
-          if (next.slots > cur.slots) perks.push(`🏭 Ruimte voor productielijn ${next.slots}: <b>${LINES[next.slots - 1].name}</b>`);
-          perks.push(`💶 Alle inkomsten <b>x${String(next.mult).replace('.', ',')}</b>`);
-          if (next.orchard > 1) perks.push(`🌳 Boomgaard <b>x${String(next.orchard).replace('.', ',')}</b> appels`);
-          if (next.plots > cur.plots) perks.push(`🌱 Extra boomgaardperceel (${next.plots} totaal)`);
-          perks.push(`📐 Een veel groter terrein`);
+          if (next.slots > cur.slots) perks.push(`Ruimte voor productielijn ${next.slots}: <b>${LINES[next.slots - 1].name}</b>`);
+          perks.push(`Alle inkomsten <b>x${String(next.mult).replace('.', ',')}</b>`);
+          if (next.orchard > 1) perks.push(`Boomgaard <b>x${String(next.orchard).replace('.', ',')}</b> appels`);
+          if (next.plots > cur.plots) perks.push(`Extra boomgaardperceel (${next.plots} totaal)`);
+          perks.push(`Een veel groter terrein`);
           const can = s.money >= next.cost;
           html += `<div class="card tier-next">
             <div class="tier-name">Volgende: <b>${next.name}</b></div>
@@ -340,9 +343,9 @@ export class UI {
             ${can ? '' : `<small class="eta">Nog ${duration((next.cost - s.money) / Math.max(1e-9, this.game.prod.income))} sparen bij huidig inkomen</small>`}
           </div>`;
         } else {
-          html += `<div class="tip">🏆 Je hebt de grootste fabriek die er bestaat! Haal investeerders binnen om nog sneller te groeien.</div>`;
+          html += `<div class="tip">Je hebt de grootste fabriek die er bestaat! Haal investeerders binnen om nog sneller te groeien.</div>`;
         }
-        html += `<div class="tier-path">${TIERS.map((t, k) => `<div class="tp ${k < s.tier ? 'done' : k === s.tier ? 'cur' : ''}"><span>${k <= s.tier ? '✓' : k + 1}</span>${t.name}</div>`).join('')}</div>`;
+        html += `<div class="tier-path">${TIERS.map((t, k) => `<div class="tp ${k < s.tier ? 'done' : k === s.tier ? 'cur' : ''}"><span>${k <= s.tier ? icon('check') : k + 1}</span>${t.name}</div>`).join('')}</div>`;
         return { title: 'Uitbreiden', sub: `Nu: <b>${cur.name}</b>`, html };
       },
     };
@@ -350,7 +353,7 @@ export class UI {
 
   investorsPanel() {
     return {
-      icon: '⭐',
+      icon: icon('star', 'gold-ic'),
       render: () => {
         const s = this.state;
         const pend = E.pendingInvestors(s);
@@ -359,7 +362,7 @@ export class UI {
         const bonusNow = s.investors * INVESTOR_BONUS;
         const bonusAfter = (s.investors + pend) * INVESTOR_BONUS;
         const html = `
-          <div class="inv-hero"><div class="star">⭐</div><div><b>${fmt(s.investors)}</b> investeerders<br><small>+${fmt(bonusNow * 100)}% inkomen</small></div></div>
+          <div class="inv-hero"><div class="star">${icon('star', 'gold-ic')}</div><div><b>${fmt(s.investors)}</b> investeerders<br><small>+${fmt(bonusNow * 100)}% inkomen</small></div></div>
           <div class="tip">Verkoop je fabriek aan investeerders en begin opnieuw met een bonus. Elke investeerder geeft <b>+${INVESTOR_BONUS * 100}%</b> inkomen, voor altijd.</div>
           <div class="stats">
             <div class="row"><span>Verdiend deze ronde</span><b>${money(s.runEarned)}</b></div>
@@ -369,7 +372,7 @@ export class UI {
             <div class="row"><span>Bonus na verkoop</span><b>+${fmt(bonusNow * 100)}%</b><em>→ +${fmt(bonusAfter * 100)}%</em></div>
           </div>
           <div class="tip small">Je houdt: investeerders, doelen en statistieken. Je verliest: geld, levels, onderzoek en uitbreidingen.</div>
-          <button class="btn gold wide ${pend > 0 ? '' : 'disabled'}" data-action="prestige-confirm">Verkoop fabriek · +${fmt(pend)} ⭐</button>`;
+          <button class="btn gold wide ${pend > 0 ? '' : 'disabled'}" data-action="prestige-confirm">Verkoop fabriek · +${fmt(pend)} investeerders</button>`;
         return { title: 'Investeerders', sub: `Ronde ${s.prestiges + 1}`, html };
       },
     };
@@ -377,19 +380,20 @@ export class UI {
 
   settingsPanel() {
     return {
-      icon: '⚙️',
+      icon: icon('gear'),
       render: () => {
         const s = this.state;
         const html = `
-          <div class="list-row"><span class="li-text"><b>🔊 Geluid</b></span><button class="btn small ${s.settings.sound ? 'green' : ''}" data-action="sound">${s.settings.sound ? 'Aan' : 'Uit'}</button></div>
-          <div class="list-row"><span class="li-text"><b>🎨 Graphics</b><small>Laag is sneller op oudere telefoons</small></span><button class="btn small" data-action="quality">${s.settings.quality === 'high' ? 'Hoog' : 'Laag'}</button></div>
+          <div class="list-row"><span class="li-text"><b>Muziek</b><small>Factory Flow</small></span><button class="btn small ${s.settings.music ? 'green' : ''}" data-action="music">${s.settings.music ? 'Aan' : 'Uit'}</button></div>
+          <div class="list-row"><span class="li-text"><b>Geluidseffecten</b></span><button class="btn small ${s.settings.sound ? 'green' : ''}" data-action="sound">${s.settings.sound ? 'Aan' : 'Uit'}</button></div>
+          <div class="list-row"><span class="li-text"><b>Graphics</b><small>Laag is sneller op oudere telefoons</small></span><button class="btn small" data-action="quality">${s.settings.quality === 'high' ? 'Hoog' : 'Laag'}</button></div>
           <div class="stats">
             <div class="row"><span>Speeltijd</span><b>${duration(s.playTime)}</b></div>
             <div class="row"><span>Totaal verdiend</span><b>${money(s.totalEarned)}</b></div>
             <div class="row"><span>Fabrieken verkocht</span><b>${s.prestiges}</b></div>
             <div class="row"><span>Gouden appels gevangen</span><b>${s.stats.golden}</b></div>
           </div>
-          <div class="btn-row"><button class="btn blue" data-action="save">💾 Opslaan</button><button class="btn red" data-action="reset-confirm">🗑️ Reset spel</button></div>
+          <div class="btn-row"><button class="btn blue" data-action="save">Opslaan</button><button class="btn red" data-action="reset-confirm">Reset spel</button></div>
           <div class="tip small">Je voortgang wordt automatisch in deze browser bewaard. Bediening: sleep om te bewegen, scroll of knijp om te zoomen, tik op een station om te upgraden.</div>`;
         return { title: 'Instellingen', sub: 'Appel Tycoon', html };
       },
@@ -408,36 +412,36 @@ export class UI {
 
   confirmPrestige() {
     const pend = E.pendingInvestors(this.state);
-    this.modal(`<div class="modal-icon">⭐</div><h2>Fabriek verkopen?</h2>
+    this.modal(`<div class="modal-icon">${icon('star', 'gold-ic')}</div><h2>Fabriek verkopen?</h2>
       <p>Je krijgt <b>+${fmt(pend)}</b> investeerders (totaal ${fmt(this.state.investors + pend)}, +${fmt((this.state.investors + pend) * INVESTOR_BONUS * 100)}% inkomen) en begint opnieuw met een schuurtje.</p>
       <div class="btn-row"><button class="btn" data-action="modal-close">Annuleren</button><button class="btn gold" data-action="prestige">Verkopen!</button></div>`);
   }
 
   confirmReset() {
-    this.modal(`<div class="modal-icon">🗑️</div><h2>Alles wissen?</h2><p>Al je voortgang, ook investeerders, wordt verwijderd. Dit kan niet ongedaan worden.</p>
+    this.modal(`<div class="modal-icon red-ic">${icon('trash')}</div><h2>Alles wissen?</h2><p>Al je voortgang, ook investeerders, wordt verwijderd. Dit kan niet ongedaan worden.</p>
       <div class="btn-row"><button class="btn" data-action="modal-close">Annuleren</button><button class="btn red" data-action="reset">Wissen</button></div>`);
   }
 
   offline(amount, seconds) {
-    this.modal(`<div class="modal-icon">🍎</div><h2>Welkom terug!</h2>
+    this.modal(`<div class="modal-icon">${glyph('fresh')}</div><h2>Welkom terug!</h2>
       <p>Terwijl je ${duration(seconds)} weg was, heeft je fabriek doorgewerkt.</p>
       <div class="offline-amount">${money(amount)}</div>
       <button class="btn green wide" data-action="offline-claim">Ophalen</button>`, false);
   }
 
   welcome() {
-    this.modal(`<div class="modal-icon">🍎</div><h2>Appel Tycoon</h2>
+    this.modal(`<div class="modal-icon">${glyph('fresh')}</div><h2>Appel Tycoon</h2>
       <p>Bouw je eigen appelfabriek! Pluk appels in de boomgaard, maak er sap, taart en nog veel meer van, en verkoop alles met je vrachtwagens.</p>
-      <ul class="perks"><li>👆 Tik op stations om ze te upgraden</li><li>🎯 Volg de doelen bovenaan voor beloningen</li><li>🏗️ Breid uit tot een gigantische fabriek</li></ul>
+      <ul class="perks"><li>Tik op stations om ze te upgraden</li><li>Volg de doelen bovenaan voor beloningen</li><li>Breid uit tot een gigantische fabriek</li></ul>
       <button class="btn green wide" data-action="modal-close">Starten!</button>`, true);
   }
 
   // ---------- Meldingen & effecten ----------
 
-  toast(text, icon = '✨') {
+  toast(text, ic = '') {
     const t = document.createElement('div');
     t.className = 'toast';
-    t.innerHTML = `<span>${icon}</span>${text}`;
+    t.innerHTML = `${ic.startsWith('<') ? ic : ic ? icon(ic) : ''}<span>${text}</span>`;
     this.el.toasts.appendChild(t);
     setTimeout(() => t.classList.add('out'), 2200);
     setTimeout(() => t.remove(), 2700);
@@ -499,7 +503,8 @@ export class UI {
     this.el.goalText.innerHTML = `${g.text} <small>${g.type === 'income' ? '' : `(${fmt(p.cur)}/${fmt(p.max)})`}</small>`;
     this.el.goalBar.style.width = Math.round((p.cur / p.max) * 100) + '%';
     this.el.goalClaim.classList.toggle('hidden', !done);
-    this.el.goalClaim.textContent = `🎁 ${money(goalReward(g, income))}`;
+    const label = `${icon('gift')} ${money(goalReward(g, income))}`;
+    if (this.el.goalClaim.innerHTML !== label) this.el.goalClaim.innerHTML = label;
     this.el.goal.classList.toggle('done', done);
   }
 
@@ -513,7 +518,7 @@ export class UI {
       this.el.boostBanner.classList.remove('hidden');
       this.el.boostTime.textContent = duration((s.boostUntil - now) / 1000);
     } else if (now < s.boostReadyAt) {
-      this.el.boostLabel.textContent = '⏳ ' + duration((s.boostReadyAt - now) / 1000);
+      this.el.boostLabel.textContent = duration((s.boostReadyAt - now) / 1000);
       b.className = 'boost-cd';
       this.el.boostBanner.classList.add('hidden');
     } else {
@@ -579,20 +584,19 @@ export class UI {
     if (st.kind === 'orchard' || st.kind === 'sales' || st.kind === 'line') {
       const lv = E.stationLevel(s, st.kind, st.i);
       can = E.upgradeQuote(s, st.kind, st.i || 0, 1).cost <= s.money;
-      const icon = st.kind === 'orchard' ? ORCHARD.icon : st.kind === 'sales' ? SALES.icon : LINES[st.i].icon;
       const warn = st.kind === 'line' && this.game.prod.lines[st.i].efficiency < 0.98 ? '<span class="warn-dot">!</span>' : '';
-      html = `<span class="lb-icon">${icon}</span><span class="lb-lv">Lv ${lv}</span>${can ? '<span class="up">▲</span>' : ''}${warn}`;
+      html = `<span class="lb-icon">${stationGlyph(st, LINES)}</span><span class="lb-lv">Lv ${lv}</span>${can ? `<span class="up">${icon('up')}</span>` : ''}${warn}`;
     } else if (st.kind === 'unlock') {
       const l = LINES[st.i];
       can = s.money >= l.unlock;
-      html = `<span class="lb-icon">${l.icon}</span><span>${l.name}<br><b>${money(l.unlock)}</b></span>`;
+      html = `<span class="lb-icon">${glyph(l.id)}</span><span>${l.name}<br><b>${money(l.unlock)}</b></span>`;
     } else if (st.kind === 'tier') {
       const t = E.nextTier(s);
       if (!t) return;
       can = s.money >= t.cost;
-      html = `<span class="lb-icon">🏗️</span><span>${t.name}<br><b>${money(t.cost)}</b></span>`;
+      html = `<span class="lb-icon tier-ic">${icon('expand')}</span><span>${t.name}<br><b>${money(t.cost)}</b></span>`;
     } else if (st.kind === 'golden') {
-      html = '<span class="lb-icon">✨</span>';
+      html = `<span class="lb-icon">${glyph('gold')}</span>`;
     }
     if (el._html !== html) { el.innerHTML = html; el._html = html; }
     el.classList.toggle('can', can);

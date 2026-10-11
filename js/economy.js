@@ -25,7 +25,7 @@ export function newState() {
     stats: { boosts: 0, golden: 0, upgrades: 0 },
     playTime: 0,
     lastTick: Date.now(),
-    settings: { sound: true, music: false, quality: 'auto' },
+    settings: { sound: true, music: true, quality: 'auto' },
   };
 }
 

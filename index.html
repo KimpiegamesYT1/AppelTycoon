@@ -31,13 +31,13 @@
       </div>
     </div>
     <div class="hud-right">
-      <button id="btn-investors" class="chip" aria-label="Investeerders"><span>⭐</span><b id="inv-count">0</b></button>
-      <button id="btn-settings" class="round" aria-label="Instellingen">⚙️</button>
+      <button id="btn-investors" class="chip" aria-label="Investeerders"><span class="gold-ic" data-icon="star"></span><b id="inv-count">0</b></button>
+      <button id="btn-settings" class="round" aria-label="Instellingen"><span data-icon="gear"></span></button>
     </div>
   </header>
 
   <div id="goal" class="goal">
-    <div class="goal-icon">🎯</div>
+    <div class="goal-icon" data-icon="target"></div>
     <div class="goal-body">
       <div id="goal-text"></div>
       <div class="bar"><i id="goal-bar"></i></div>
@@ -45,13 +45,13 @@
     <button id="goal-claim" class="btn green small hidden">Claim</button>
   </div>
 
-  <div id="boost-banner" class="boost-banner hidden">⚡ TURBO x2 · <span id="boost-time"></span></div>
+  <div id="boost-banner" class="boost-banner hidden">Turbo x2 · <span id="boost-time"></span></div>
 
   <nav id="dock">
-    <button data-open="stations"><span>🏭</span><small>Fabriek</small></button>
-    <button data-open="research"><span>🔬</span><small>Onderzoek</small><i class="badge hidden"></i></button>
-    <button data-open="expand"><span>🏗️</span><small>Uitbreiden</small><i class="badge hidden"></i></button>
-    <button id="btn-boost" class="boost-ready"><span>⚡</span><small id="boost-label">Turbo</small></button>
+    <button data-open="stations"><span data-icon="factory"></span><small>Fabriek</small></button>
+    <button data-open="research"><span data-icon="flask"></span><small>Onderzoek</small><i class="badge hidden"></i></button>
+    <button data-open="expand"><span data-icon="expand"></span><small>Uitbreiden</small><i class="badge hidden"></i></button>
+    <button id="btn-boost" class="boost-ready"><span data-icon="bolt"></span><small id="boost-label">Turbo</small></button>
   </nav>
 
   <section id="sheet" class="sheet hidden"></section>
@@ -59,7 +59,7 @@
   <div id="toasts"></div>
 
   <div id="loading">
-    <div class="logo">🍎</div>
+    <img class="logo" src="icon.svg" alt="">
     <div>Appel Tycoon</div>
     <small>fabriek wordt gebouwd…</small>
   </div>

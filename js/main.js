@@ -1,7 +1,8 @@
 import * as E from './economy.js';
 import { World } from './world.js';
 import { UI } from './ui.js';
-import { sfx, setSound } from './audio.js';
+import { sfx, setSound, initMusic, setMusic } from './audio.js';
+import { glyph } from './icons.js';
 import { LINES, TIERS, BOOST, GOLDEN, OFFLINE, INVESTOR_BONUS } from './config.js';
 import { goalAt, goalProgress, goalReward } from './goals.js';
 import { money, fmt } from './format.js';
@@ -38,6 +39,7 @@ if (state.settings.quality === 'auto') {
   state.settings.quality = window.matchMedia('(pointer: coarse)').matches ? 'low' : 'high';
 }
 setSound(state.settings.sound);
+initMusic('assets/audio/factory-flow.mp3', state.settings.music);
 
 const game = {
   state,
@@ -64,7 +66,7 @@ const game = {
     const after = E.stationLevel(state, kind, i);
     if (E.milestoneCount(after) > E.milestoneCount(before) && kind !== 'sales') {
       sfx.milestone();
-      ui.toast(`Mijlpaal! ${kind === 'orchard' ? 'Boomgaard' : LINES[i].name} produceert x2`, '🏅');
+      ui.toast(`Mijlpaal! ${kind === 'orchard' ? 'Boomgaard' : LINES[i].name} produceert x2`, 'medal');
       world.burst(world.stationPos(st).setY(3), 60);
     } else sfx.buy();
     world.bounceStation(st);
@@ -74,7 +76,7 @@ const game = {
   unlockLine(i) {
     if (!E.buyLine(state, i)) { sfx.error(); return false; }
     sfx.unlock();
-    ui.toast(`Nieuwe productielijn: ${LINES[i].name}!`, LINES[i].icon);
+    ui.toast(`Nieuwe productielijn: ${LINES[i].name}!`, glyph(LINES[i].id));
     world.focus({ kind: 'line', i });
     setTimeout(() => world.bounceStation({ kind: 'line', i }), 50);
     ui.open('station', { kind: 'line', i });
@@ -84,7 +86,7 @@ const game = {
   buyTier() {
     if (!E.buyTier(state)) { sfx.error(); return false; }
     sfx.unlock();
-    ui.toast(`Uitgebreid naar ${TIERS[state.tier].name}!`, '🏗️');
+    ui.toast(`Uitgebreid naar ${TIERS[state.tier].name}!`, 'expand');
     setTimeout(() => {
       world.burst(world.target.clone().setY(3), 120);
     }, 60);
@@ -94,7 +96,7 @@ const game = {
   buyResearch(id) {
     if (!E.buyResearch(state, id)) { sfx.error(); return false; }
     sfx.unlock();
-    ui.toast('Onderzoek voltooid!', '🔬');
+    ui.toast('Onderzoek voltooid!', 'flask');
     return true;
   },
 
@@ -103,7 +105,7 @@ const game = {
     if (!gain) return;
     sfx.prestige();
     ui.close();
-    ui.toast(`+${fmt(gain)} investeerders! Inkomen +${fmt(state.investors * INVESTOR_BONUS * 100)}%`, '⭐');
+    ui.toast(`+${fmt(gain)} investeerders! Inkomen +${fmt(state.investors * INVESTOR_BONUS * 100)}%`, 'star');
     world.target.set(6, 0, 3);
     world.viewSize = 34;
     this.save();
@@ -116,7 +118,7 @@ const game = {
     state.boostReadyAt = state.boostUntil + BOOST.cooldown * 1000;
     state.stats.boosts++;
     sfx.boost();
-    ui.toast(`Turbo! Alles ${BOOST.mult}x zo snel`, '⚡');
+    ui.toast(`Turbo! Alles ${BOOST.mult}x zo snel`, 'bolt');
   },
 
   claimGoal() {
@@ -127,7 +129,7 @@ const game = {
     E.earn(state, reward);
     state.goal++;
     sfx.coin();
-    ui.toast(`Doel gehaald! +${money(reward)}`, '🎯');
+    ui.toast(`Doel gehaald! +${money(reward)}`, 'target');
   },
 
   tapStation(st) {
@@ -145,7 +147,7 @@ const game = {
     sfx.coin();
     const p = world.toScreen(world.golden.position);
     ui.float(p.x, p.y, '+' + money(reward), 'gold');
-    ui.toast(`Gouden appel! +${money(reward)}`, '🍏');
+    ui.toast(`Gouden appel! +${money(reward)}`, 'sparkle');
     world.burst(world.golden.position.clone(), 50);
     world.showGolden(false);
     this.goldenLeft = 0;
@@ -156,6 +158,11 @@ const game = {
     state.settings.sound = on;
     setSound(on);
     if (on) sfx.click();
+  },
+
+  setMusic(on) {
+    state.settings.music = on;
+    setMusic(on);
   },
 
   setQuality(q) {
@@ -185,7 +192,7 @@ try {
     onTap: (st) => game.tapStation(st),
   });
 } catch (e) {
-  document.getElementById('loading').innerHTML = '<div class="logo">🍎</div><div>Je browser ondersteunt geen WebGL.</div><small>Probeer een andere browser.</small>';
+  document.getElementById('loading').innerHTML = '<img class="logo" src="icon.svg" alt=""><div>Je browser ondersteunt geen WebGL.</div><small>Probeer een andere browser.</small>';
   throw e;
 }
 game.world = world;
