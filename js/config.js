@@ -26,8 +26,16 @@ export const SALES = {
   storeMin: 20,
 };
 
+// Een vrachtwagen laadt aan de deur (loadTime seconden), vertrekt en wordt dan pas verkocht.
+// Na cycle seconden staat hij weer aan de deur.
+export const TRUCK = { loadTime: 4, cycle: 20 };
+
 // Op deze levels krijgt het magazijn een extra laadplek met een extra vrachtwagen.
+
 export const DOCK_LEVELS = [10, 20, 50, 100, 200];
+
+// Op deze levels komt er een plukker bij in de boomgaard (alleen te zien, geen extra productie).
+export const PICKER_LEVELS = [3, 8, 15, 25, 40, 60, 80, 100, 150, 200, 300];
 
 // Productielijnen. value = prijs per product, apples = appels per product,
 // rate = producten per seconde per level, cost = prijs eerste upgrade.

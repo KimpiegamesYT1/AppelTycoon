@@ -1,8 +1,8 @@
 // De 3D-wereld: camera, fabriek, boomgaard, banden met producten, vrachtwagens.
 import * as THREE from '../vendor/three.module.min.js';
 import * as M from './models.js';
-import { LINES, TIERS, DOCK_LEVELS } from './config.js';
-import { truckCount } from './economy.js';
+import { LINES, TIERS, TRUCK, PICKER_LEVELS } from './config.js';
+import { truckCount, truckCapacity } from './economy.js';
 
 const LINE_SPACING = 5.5;
 const LZ0 = 2.5;
@@ -11,16 +11,16 @@ const HX1 = 23.5;
 const BELT_Y = 1.06;
 const FEED_Z = -0.5;
 const BIN = new THREE.Vector3(-4.6, 0, -1.6);
-const ROAD_X = 42;
+const ROAD_X = 46;
 // magazijn: open hal rechts van de fabriek, laadplekken aan de kant van de weg
-const DX0 = 24.8;
-const DX1 = 34;
+const DX0 = 28.5;
+const DX1 = 37.5;
 const DZ0 = -6.5;
 const DZ1 = 16.5;
 const DEPOT = new THREE.Vector3((DX0 + DX1) / 2, 0, (DZ0 + DZ1) / 2);
-const DEPOT_IN = 26.6;
+const DEPOT_IN = DX0 + 1.5;
 const dockZ = (k) => -3.6 + k * 3.6;
-const BELT_SPEED = 2.6;
+const BELT_SPEED = 3;
 
 export const lineZ = (i) => LZ0 + i * LINE_SPACING;
 const hallEnd = (slots) => lineZ(slots - 1) + 3;
@@ -156,6 +156,11 @@ class PathMover {
     this.heading = null;
     this.place();
   }
+  // Zet het voertuig op afstand d langs het pad (voor vrachtwagens die de economie volgen).
+  setDistance(d, dt) {
+    this.d = ((d % this.total) + this.total) % this.total;
+    this.place(dt);
+  }
   update(dt) {
     if (this.wait > 0) {
       this.wait -= dt;
@@ -239,14 +244,16 @@ export class World {
     window.addEventListener('resize', () => this.resize());
   }
 
+  // Hoog: scherpe beelden (tot 2x pixeldichtheid) met zachte schaduwen.
+  // Laag: lagere resolutie en geen schaduwen; veel lichter voor oudere telefoons.
   setQuality(q) {
     this.quality = q;
     const high = q === 'high';
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, high ? 2 : 1.25));
-    this.renderer.shadowMap.enabled = true;
-    const size = high ? 2048 : 1024;
-    if (this.sun.shadow.mapSize.x !== size) {
-      this.sun.shadow.mapSize.set(size, size);
+    const dpr = window.devicePixelRatio || 1;
+    this.renderer.setPixelRatio(high ? Math.min(dpr, 2) : Math.min(dpr, 1) * 0.8);
+    this.sun.castShadow = high;
+    if (high && this.sun.shadow.mapSize.x !== 2048) {
+      this.sun.shadow.mapSize.set(2048, 2048);
       if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
     }
     this.resize?.();
@@ -466,7 +473,7 @@ export class World {
     colOut.position.set(21.95, 0.25, FEED_Z);
     g.add(colOut);
     this.feeder = new Belt([[feedStart + 0.1, FEED_Z], [0, FEED_Z], [0, zLast]], 0.42);
-    this.collector = new Belt([[21.5, zLast], [21.5, FEED_Z], [DEPOT_IN, FEED_Z]], 0.62);
+    this.collector = new Belt([[21.5, zLast], [21.5, FEED_Z], [DEPOT_IN, FEED_Z]], 0.6, 3.4);
     this.feedJoin = (i) => (0 - (feedStart + 0.1)) + (lineZ(i) - FEED_Z);
     this.colJoin = (i) => zLast - lineZ(i);
     this.feedTimer = 0;
@@ -499,77 +506,97 @@ export class World {
       this.hits.push(h);
     }
 
-    // ---- Magazijn (open hal, je kijkt naar binnen) ----
+    // ---- Magazijn: open hal met een lage westmuur, zodat je de band ziet binnenkomen ----
     const db = new M.Builder();
     const dw = DX1 - DX0;
     const dd = DZ1 - DZ0;
     db.box(dw, 0.3, dd, 0xd9dcdf, DEPOT.x, 0, DEPOT.z);
-    for (let x = DX0 + 2.3; x < DX1; x += 2.3) db.box(0.04, 0.02, dd, 0xc4c8cc, x, 0.3, DEPOT.z);
-    for (let k = 0; k < 6; k++) db.box(2.6, 0.03, 0.1, M.C.yellow, DX1 - 1.5, 0.3, dockZ(k) + 1.45);
+    for (let x = DX0 + 2.25; x < DX1; x += 2.25) db.box(0.04, 0.02, dd, 0xc4c8cc, x, 0.3, DEPOT.z);
+    // looproute van de heftruck
+    db.box(0.12, 0.03, dd - 2, M.C.yellow, DX1 - 2.25, 0.3, DEPOT.z + 0.6);
+    db.box(0.12, 0.03, dd - 2, M.C.yellow, DX1 - 4.1, 0.3, DEPOT.z + 0.6);
     const dwh = 3.6;
     db.box(dw + 0.3, dwh, 0.3, 0xe9e4da, DEPOT.x, 0.3, DZ0);
     db.box(dw + 0.32, 0.35, 0.34, M.C.red, DEPOT.x, 0.3 + dwh, DZ0);
-    for (let x = DX0 + 2.6; x < DX1 - 1; x += 3.2) db.box(1.6, 0.9, 0.34, M.C.glass, x, 1.9, DZ0);
+    for (let x = DX0 + 2.4; x < DX1 - 1; x += 3.2) db.box(1.6, 0.9, 0.34, M.C.glass, x, 2.0, DZ0);
+    // lage westmuur met opening voor de verzamelband
+    const lw = 1.0;
     const w1 = FEED_Z - 0.85 - DZ0;
-    db.box(0.3, dwh, w1, 0xe9e4da, DX0, 0.3, DZ0 + w1 / 2);
+    db.box(0.3, lw, w1, 0xe9e4da, DX0, 0.3, DZ0 + w1 / 2);
     const w2 = DZ1 - (FEED_Z + 0.85);
-    db.box(0.3, dwh, w2, 0xe9e4da, DX0, 0.3, FEED_Z + 0.85 + w2 / 2);
-    db.box(0.34, 0.35, dd, M.C.red, DX0, 0.3 + dwh, DEPOT.z);
-    db.box(0.3, dwh - 1.55, 1.7, 0xe9e4da, DX0, 1.85, FEED_Z);
-    for (const [x, z] of [[DX0, DZ0], [DX1, DZ0], [DX0, DZ1], [DX1, DZ1]]) db.box(0.5, dwh + 0.5, 0.5, M.C.red, x, 0, z);
+    db.box(0.3, lw, w2, 0xe9e4da, DX0, 0.3, FEED_Z + 0.85 + w2 / 2);
+    db.box(0.34, 0.12, w1, M.C.red, DX0, 0.3 + lw, DZ0 + w1 / 2);
+    db.box(0.34, 0.12, w2, M.C.red, DX0, 0.3 + lw, FEED_Z + 0.85 + w2 / 2);
+    db.box(0.5, dwh + 0.5, 0.5, M.C.red, DX0, 0, DZ0);
+    db.box(0.5, dwh + 0.5, 0.5, M.C.red, DX1, 0, DZ0);
     // bord op de achterwand
-    db.box(4.2, 1.1, 0.12, M.C.white, DEPOT.x + 1.5, 2.9, DZ0 + 0.2);
-    db.ico(0.42, M.C.apple, DEPOT.x - 0.1, 3.45, DZ0 + 0.3, { sz: 0.3 });
-    db.box(2.4, 0.18, 0.05, M.C.red, DEPOT.x + 2.1, 3.55, DZ0 + 0.28);
-    db.box(2.0, 0.18, 0.05, M.C.red, DEPOT.x + 1.9, 3.15, DZ0 + 0.28);
-    // rollentafel waar de band eindigt
-    db.box(1.4, 0.75, 1.3, M.C.metalDark, DEPOT_IN + 0.4, 0.3, FEED_Z);
-    for (let k = 0; k < 4; k++) db.cyl(0.07, 1.2, M.C.metal, DEPOT_IN - 0.15 + k * 0.35, 1.0, FEED_Z - 0.6, { seg: 6, rx: Math.PI / 2 });
+    db.box(4.2, 1.0, 0.12, M.C.white, DEPOT.x + 1.6, 2.6, DZ0 + 0.2);
+    db.ico(0.4, M.C.apple, DEPOT.x, 3.1, DZ0 + 0.3, { sz: 0.3 });
+    db.box(2.4, 0.18, 0.05, M.C.red, DEPOT.x + 2.1, 3.25, DZ0 + 0.28);
+    db.box(2.0, 0.18, 0.05, M.C.red, DEPOT.x + 1.9, 2.85, DZ0 + 0.28);
+    // inpaktafel waar de verzamelband eindigt
+    db.box(1.5, 0.75, 1.4, M.C.metalDark, DEPOT_IN + 0.45, 0.3, FEED_Z);
+    for (let k = 0; k < 4; k++) db.cyl(0.07, 1.3, M.C.metal, DEPOT_IN - 0.1 + k * 0.35, 1.0, FEED_Z - 0.65, { seg: 6, rx: Math.PI / 2 });
     // laadplein naar de weg
     db.box(ROAD_X - 2.45 - DX1, 0.17, dd, M.C.road, (DX1 + ROAD_X - 2.45) / 2, 0, DEPOT.z);
+    for (let k = 0; k < 6; k++) db.box(4.6, 0.02, 0.1, 0xffffff, DX1 + 2.6, 0.17, dockZ(k) + 1.55);
     const depot = db.mesh({ receive: true });
     depot.receiveShadow = true;
     g.add(depot);
     const rail = M.guardRail(dw - 0.6);
     rail.position.set(DX0 + 0.3, 0.3, DZ1);
     g.add(rail);
-    // stellingen en kratten: hoe voller het magazijn, hoe meer kratten
+    // stellingen; de kratten erin laten zien hoe vol het magazijn is
     this.storeCrates = [];
-    const rackZ = [DZ0 + 0.9, 4.2, 8.2, 12.2];
-    for (const z of rackZ) {
-      const r = M.palletRack(4);
-      r.position.set(DX0 + 0.7, 0.3, z);
+    const racks = [[DX0 + 0.5, DZ0 + 0.9, 4], [DX0 + 0.5, 5.6, 4], [DX0 + 0.5, 10.6, 4]];
+    for (const [x, z, bays] of racks) {
+      const r = M.palletRack(bays);
+      r.position.set(x, 0.3, z);
       g.add(r);
     }
     for (let lvl = 0; lvl < 3; lvl++) {
-      for (const z of rackZ) {
-        for (let bay = 0; bay < 4; bay++) {
+      for (const [x, z, bays] of racks) {
+        for (let bay = 0; bay < bays; bay++) {
           const c = M.crateStack(31 + bay + lvl * 7, 1);
-          c.scale.setScalar(1.05);
-          c.position.set(DX0 + 0.7 + 0.13 + bay * 1.1, 0.3 + 0.12 + lvl * 0.85, z - 0.42);
+          c.position.set(x + 0.13 + bay * 1.1, 0.3 + 0.12 + lvl * 0.85, z - 0.42);
           c.visible = false;
           g.add(c);
           this.storeCrates.push(c);
         }
       }
     }
-    // laaddeuren
+    // laaddeuren met een pallet die klaarstaat voor de vrachtwagen
     this.docks = [];
     for (let k = 0; k < 6; k++) {
       const door = M.dockDoor();
       door.position.set(DX1, 0.3, dockZ(k));
       g.add(door);
-      this.docks.push(door);
+      const p = M.pallet(0xc9b28a);
+      p.scale.set(1, 0.17, 1);
+      p.position.set(DX1 - 1.3, 0.3, dockZ(k));
+      g.add(p);
+      const crates = [];
+      for (let c = 0; c < 4; c++) {
+        const cb = new M.Builder();
+        cb.box(0.55, 0.5, 0.55, c % 2 ? M.C.wood : 0xd29a62, 0, 0, 0);
+        cb.ico(0.11, M.C.apple, 0, 0.52, 0);
+        const m = cb.mesh();
+        m.position.set(DX1 - 1.3 + (c % 2 ? 0.28 : -0.28), 0.5 + Math.floor(c / 2) * 0.52, dockZ(k) + (c % 2 ? 0.28 : -0.28) * (c < 2 ? 1 : -1));
+        m.visible = false;
+        g.add(m);
+        crates.push(m);
+      }
+      this.docks.push({ door, pallet: p, crates, staged: 0, userData: door.userData });
     }
-    const sh = M.hitBox(dw + 6, 5, dd, DEPOT.x + 3, 0, DEPOT.z);
+    const sh = M.hitBox(dw + 7, 5, dd, DEPOT.x + 3.5, 0, DEPOT.z);
     sh.userData.station = { kind: 'sales' };
     g.add(sh);
     this.hits.push(sh);
 
     const fork = M.forklift();
     g.add(fork);
-    this.forklift = new PathMover(fork, [[DEPOT_IN + 1.6, 1.2], [DX1 - 2.6, 1.2], [DX1 - 2.6, 10.6], [DX0 + 6.2, 10.6], [DX0 + 6.2, 1.2]], 1.8,
-      { stops: { 0: 1.2, 2: 1.2, 3: 1.0 }, y: 0.3 });
+    this.forklift = new PathMover(fork, [[DEPOT_IN + 1.6, 1.4], [DX1 - 2.6, 1.4], [DX1 - 2.6, 15], [DX1 - 3.7, 15], [DX1 - 3.7, 2.2], [DEPOT_IN + 1.6, 2.2]], 2.2,
+      { stops: { 0: 1.0, 2: 1.0 }, y: 0.3 });
 
     // ---- Lege lijnplekken ----
     this.slotMarks = [];
@@ -639,10 +666,10 @@ export class World {
       return { x: (HX0 + HX1) / 2, z: (z0 + z1) / 2 + 0.5, w: HX1 - HX0, d: z1 - z0 + 1 };
     }
     return [
-      { x: 58, z: 2, w: 26, d: 24 },
+      { x: 66, z: 2, w: 26, d: 24 },
       { x: 10, z: 66, w: 40, d: 20 },
       { x: -18, z: -22, w: 16, d: 14 },
-      { x: 62, z: 42, w: 16, d: 16 },
+      { x: 68, z: 44, w: 16, d: 16 },
     ][t - 7];
   }
 
@@ -665,12 +692,12 @@ export class World {
       add(M.silo(8, 0xe53935), -9, 50);
     }
     if (tier >= 7) {
-      add(M.warehouse(18, 12, 6, 0xf4f1ea, 0xd9473b), 58, -3);
-      add(M.silo(9), 52, 10);
-      add(M.silo(9), 56, 10);
-      add(M.silo(9, 0xe53935), 60, 10);
+      add(M.warehouse(18, 12, 6, 0xf4f1ea, 0xd9473b), 66, -3);
+      add(M.silo(9), 60, 10);
+      add(M.silo(9), 64, 10);
+      add(M.silo(9, 0xe53935), 68, 10);
       const yard = new M.Builder();
-      yard.box(26, 0.05, 26, M.C.concrete, 58, 0, 2);
+      yard.box(26, 0.05, 26, M.C.concrete, 66, 0, 2);
       add(yard.mesh({ shadow: false, receive: true }), 0, 0);
     }
     if (tier >= 8) {
@@ -690,8 +717,8 @@ export class World {
       add(M.office(6, 6, 12, 0xffffff, 99), 10, -16);
     }
     if (tier >= 10) {
-      add(M.rocket(), 62, 42);
-      add(M.office(5, 5, 8, 0xd5e6f5, 42), 52, 32);
+      add(M.rocket(), 68, 44);
+      add(M.office(5, 5, 8, 0xd5e6f5, 42), 60, 34);
     }
   }
 
@@ -767,11 +794,13 @@ export class World {
 
     // plukkers
     // extra plukkers op vaste levels, zodat je de boomgaard ziet groeien
-    const pickers = Math.min(plots * 3, 12, 1 + [3, 8, 15, 25, 40, 60, 80, 100, 150, 200, 300].filter((l) => state.orchard >= l).length);
+    const pickers = Math.min(plots * 3, 12, 1 + PICKER_LEVELS.filter((l) => state.orchard >= l).length);
     while (this.pickers.length < pickers) this.addPicker();
     while (this.pickers.length > pickers) { const p = this.pickers.pop(); this.scene.remove(p.obj); disposeTree(p.obj); }
 
     // vrachtwagens: één per open laadplek
+    this.state = state;
+    this.truckCap = truckCapacity(state);
     const trucks = truckCount(state.sales);
     while (this.trucks.length < trucks) this.addTruck(this.trucks.length);
     this.openDocks = trucks;
@@ -783,32 +812,56 @@ export class World {
       if (this.binMesh) this.binMesh.userData.heap.position.y = 0.2 + bf * 1.05;
       if (this.binMesh) this.binMesh.userData.heap.visible = bf > 0.02;
       const sf = Math.min(1, state.goods / prod.storeCap);
+      this.storeFill = sf;
       const n = Math.round(sf * this.storeCrates.length);
       this.storeCrates.forEach((c, k) => { c.visible = k < n; });
     }
 
-    // stroomsnelheden: hoeveel producten per seconde je op de banden ziet (begrensd, zodat de
-    // verzamelband het kan bijhouden). Vastlopen ontstaat vanzelf als het magazijn vol is.
+    // Stroom op de banden: tot 2,5 per seconde zie je precies wat de lijn maakt. Daarboven gaan
+    // producten in bakjes (batch), zodat de banden het kunnen bijhouden.
     if (prod) {
       this.storeFull = prod.storeFull;
+      // bij een vol magazijn tonen we de echte machinesnelheid; het ophopen ontstaat dan op de band
+      const rateOf = (i) => (prod.lines[i].status === 'full' ? prod.lines[i].potential : prod.lines[i].rate);
       let sum = 0;
       const vis = LINES.map((l, i) => {
-        const r = this.lineObjs[i] ? prod.lines[i].rate : 0;
-        const v = r > 0 ? Math.min(2.2, 0.3 + 0.8 * Math.log10(1 + r)) : 0;
+        const r = this.lineObjs[i] ? rateOf(i) : 0;
+        let v = r <= 2.5 ? r : 2.5 + Math.log2(r / 2.5) * 0.5;
+        v = Math.min(v, 4);
         sum += v;
         return v;
       });
-      const scale = sum > 3 ? 3 / sum : 1;
+      const scale = sum > 5 ? 5 / sum : 1;
       let feed = 0;
       LINES.forEach((l, i) => {
         const o = this.lineObjs[i];
         if (!o) return;
+        const r = rateOf(i);
         o.vis = vis[i] * scale;
-        o.base = Math.min(1.5, 0.25 + Math.log10(1 + prod.lines[i].rate) / 2);
-        if (!this.lineFlows[i].input.full()) feed += o.vis;
+        o.batch = o.vis > 0 ? r / o.vis : 1;
+        o.k = Math.max(1, Math.min(l.apples, Math.floor(4 / Math.max(o.vis, 0.01))));
+        o.base = Math.min(1.5, 0.25 + Math.log10(1 + r) / 2);
+        feed += o.vis * o.k;
       });
-      this.feedRate = feed;
+      if (feed > 6.5) {
+        const f = 6.5 / feed;
+        feed = 0;
+        this.lineObjs.forEach((o) => { if (o) { o.k = Math.max(1, Math.floor(o.k * f)); feed += o.vis * o.k; } });
+      }
+      this.feedRate = 0;
+      this.lineObjs.forEach((o, i) => { if (o && !this.lineFlows[i].input.full()) this.feedRate += o.vis * o.k; });
     }
+  }
+
+  truckPosition(k) {
+    const tr = this.trucks[k];
+    return tr ? tr.obj.position.clone() : DEPOT.clone();
+  }
+
+  // Hoeveel stuks één product op de band voorstelt (1 = precies wat je ziet).
+  beltBatch(i) {
+    const o = this.lineObjs[i];
+    return o && o.batch ? o.batch : 1;
   }
 
   addPicker() {
@@ -827,12 +880,8 @@ export class World {
     const z = dockZ(k);
     const park = DX1 + 2.45;
     const path = [[park, z], [ROAD_X - 0.5, z], [ROAD_X - 0.5, 85], [ROAD_X + 3.5, 85], [ROAD_X + 3.5, z], [park + 4.5, z]];
-    const mover = new PathMover(obj, path, 12, {
-      stops: { 0: 6 },
-      reverse: [5],
-      onLeave: (seg, pos) => { if (seg === 0 && this.onTruckDepart) this.onTruckDepart(k, pos.clone()); },
-    });
-    mover.wait = 2 + k * 1.3;
+    // de positie komt uit de economie (state.trucks[k].t), zodat verkoop en beeld kloppen
+    const mover = new PathMover(obj, path, 12, { reverse: [5] });
     this.trucks.push({ obj, mover });
   }
 
@@ -932,7 +981,7 @@ export class World {
 
   clampTarget() {
     const T = this.builtTier;
-    const maxX = T >= 7 ? 72 : 46;
+    const maxX = T >= 7 ? 78 : 50;
     const maxZ = T >= 7 ? 75 : (this.zEnd || 20) + 8;
     const minZ = T >= 8 ? -28 : -12;
     this.target.x = Math.min(maxX, Math.max(-36, this.target.x));
@@ -1050,8 +1099,6 @@ export class World {
     const out = [];
     out.push({ key: 'orchard', st: { kind: 'orchard' }, pos: BIN.clone().setY(3.6) });
     out.push({ key: 'sales', st: { kind: 'sales' }, pos: DEPOT.clone().setY(5.2) });
-    const nextDock = DOCK_LEVELS.find((l) => state.sales < l);
-    if (nextDock) out.push({ key: 'dock', st: { kind: 'dock', level: nextDock }, pos: new THREE.Vector3(DX1 + 0.3, 3.9, dockZ(truckCount(state.sales))) });
     LINES.forEach((l, i) => {
       if (state.lines[i] > 0) out.push({ key: 'line' + i, st: { kind: 'line', i }, pos: new THREE.Vector3(10, 4.2, lineZ(i)) });
       else if (i < TIERS[state.tier].slots && (i === 0 || state.lines[i - 1] > 0)) out.push({ key: 'unlock' + i, st: { kind: 'unlock', i }, pos: new THREE.Vector3(10, 1.4, lineZ(i)) });
@@ -1093,11 +1140,17 @@ export class World {
     });
 
     // laaddeuren: open voor elke vrachtwagen, dicht voor plekken die nog komen
+    // pallets bij de deuren: wat klaarstaat voor de volgende vrachtwagen
+    const goods = this.state ? this.state.goods : 0;
+    const ready = this.truckCap > 0 ? Math.min(1, goods / this.truckCap) : 0;
     (this.docks || []).forEach((d, k) => {
       const open = k < (this.openDocks || 1);
       const sh = d.userData.shutter;
       sh.position.y += ((open ? 2.75 : 0.3) - sh.position.y) * Math.min(1, dt * 3);
       d.userData.lamp.material = open ? LAMP_ON : LAMP_OFF;
+      const sn = open ? Math.ceil(ready * 4 - 0.05) : 0;
+      d.crates.forEach((c, j) => { c.visible = j < sn; });
+      d.pallet.visible = open;
     });
 
     // plukkers
@@ -1127,7 +1180,17 @@ export class World {
     this.treeMeshes.forEach((m, v) => { m.count = counts[v]; m.instanceMatrix.needsUpdate = true; });
 
     // voertuigen
-    this.trucks.forEach((tr) => tr.mover.update(dt));
+    // vrachtwagens: laden aan de deur, rijden weg (verkocht) en komen leeg terug
+    const L = TRUCK.loadTime;
+    this.trucks.forEach((tr, k) => {
+      const st = this.state && this.state.trucks && this.state.trucks[k];
+      if (!st) return;
+      const d = st.t < L ? 0 : ((st.t - L) / (TRUCK.cycle - L)) * tr.mover.total;
+      tr.mover.setDistance(d, dt);
+      const full = st.t < L ? (this.truckCap > 0 ? st.load / this.truckCap : 0) : tr.mover.seg < 2 ? st.last : 0;
+      const n = Math.round(full * 8);
+      tr.obj.userData.cargo.forEach((c, j) => { c.visible = j < n; });
+    });
     if (this.forklift) this.forklift.update(dt);
 
     // gouden appel
@@ -1172,7 +1235,10 @@ export class World {
   // Het bandennetwerk: toevoerband -> lijnen -> machines -> verzamelband -> magazijn.
   updateBelts(dt) {
     if (!this.feeder) return;
-    this.feedTimer = Math.min(2, this.feedTimer + dt * this.feedRate);
+    // Is de appelbak vol, dan duwt hij zoveel appels op de band als erop past: de band loopt vol
+    // en de appels wachten voor de machines. Anders komen er precies zoveel als de machines vragen.
+    const push = this.binFull;
+    this.feedTimer = Math.min(2, this.feedTimer + dt * (push ? 12 : this.feedRate));
     if (this.feedTimer >= 1 && this.feeder.canInsert(0)) {
       this.feeder.insert({ d: 0, pool: this.applePool });
       this.feedTimer -= 1;
@@ -1183,20 +1249,21 @@ export class World {
       const f = this.lineFlows[i];
       // appels afslaan van de toevoerband naar deze lijn
       o.want = Math.min(2, o.want + o.vis * dt);
-      if (o.want >= 1 && f.input.canInsert(0)) {
+      if ((o.want >= 1 || push) && f.input.canInsert(0)) {
         const it = this.feeder.takeNear(this.feedJoin(i));
-        if (it) { it.d = 0; f.input.insert(it); o.want -= 1; }
+        if (it) { it.d = 0; f.input.insert(it); o.want = Math.max(0, o.want - 1); }
       }
-      f.input.update(dt, () => { if (o.held < 1) { o.held++; return true; } return false; });
-      // de machine maakt van elke appel een product, als er plek is op de band erna
+      const k = o.k || 1;
+      f.input.update(dt, () => { if (o.held < k) { o.held++; return true; } return false; });
+      // de machine maakt een product van k appels, als er plek is op de band erna
       let running = false;
-      if (o.held > 0 && o.vis > 0) {
+      if (o.held >= k && o.vis > 0) {
         o.prog += dt * o.vis;
         running = true;
         if (o.prog >= 1) {
           if (f.output.canInsert(0)) {
             f.output.insert({ d: 0, pool: this.productPools[i] });
-            o.held--;
+            o.held -= k;
             o.prog = 0;
           } else { o.prog = 1; running = false; }
         }

@@ -39,7 +39,7 @@ function bundle(c, o) {
   const li = o.label.startsWith('line') ? Number(o.label.slice(4)) : -1;
   for (let k = 0; k < 60; k++) {
     const p = E.computeProduction(c, 0, true);
-    if (o.label !== 'sales' && p.output > p.transport * 1.001) { cost += E.upgradeQuote(c, 'sales', 0, 1).cost; c.sales++; }
+    if (o.label !== 'sales' && p.potential > p.transport * 1.001) { cost += E.upgradeQuote(c, 'sales', 0, 1).cost; c.sales++; }
     else if (li >= 0 && p.lines[li].status === 'apples') { cost += E.upgradeQuote(c, 'orchard', 0, 1).cost; c.orchard++; }
     else break;
   }

@@ -184,26 +184,48 @@ export function person(shirt = C.red, cap = C.blue, { basket = false, helmet = f
   return g;
 }
 
+// Vrachtwagen met open laadbak; de kratten in de bak zijn losse delen die je per stuk
+// kunt tonen terwijl de vrachtwagen geladen wordt (userData.cargo).
 export function truck(color = C.red, seed = 1) {
+  const g = new THREE.Group();
   const b = new Builder();
   // lokaal: rijrichting +x
-  b.box(4.2, 0.35, 1.7, C.dark, 0, 0.35, 0);
-  b.box(1.3, 1.25, 1.7, color, 1.55, 0.7, 0);
-  b.box(0.05, 0.5, 1.4, C.glass, 2.2, 1.25, 0);
-  b.box(0.8, 0.5, 0.05, C.glass, 1.55, 1.25, 0.86);
-  b.box(0.8, 0.5, 0.05, C.glass, 1.55, 1.25, -0.86);
-  b.box(2.75, 1.7, 1.8, C.white, -0.6, 0.7, 0);
-  b.box(2.6, 0.22, 1.82, color, -0.6, 2.0, 0);
-  b.ico(0.42, C.apple, -0.6, 1.45, 0.92, { sz: 0.3 });
-  b.ico(0.42, C.apple, -0.6, 1.45, -0.92, { sz: 0.3 });
-  b.box(0.1, 0.18, 0.12, C.leaf, -0.6, 1.85, 0.93);
-  b.box(0.1, 0.18, 0.12, C.leaf, -0.6, 1.85, -0.93);
-  for (const x of [1.4, -0.4, -1.4]) {
+  b.box(4.4, 0.35, 1.7, C.dark, 0, 0.35, 0);
+  b.box(1.3, 1.3, 1.75, color, 1.6, 0.7, 0);
+  b.box(0.05, 0.5, 1.45, C.glass, 2.26, 1.3, 0);
+  b.box(0.8, 0.5, 0.05, C.glass, 1.6, 1.3, 0.88);
+  b.box(0.8, 0.5, 0.05, C.glass, 1.6, 1.3, -0.88);
+  b.box(1.32, 0.12, 1.77, 0xffffff, 1.6, 2.0, 0);
+  // laadvloer met lage zijwanden, achterkant open
+  b.box(3.0, 0.15, 1.8, C.woodDark, -0.65, 0.7, 0);
+  b.box(3.0, 0.45, 0.08, color, -0.65, 0.85, 0.88);
+  b.box(3.0, 0.45, 0.08, color, -0.65, 0.85, -0.88);
+  b.box(0.1, 0.9, 1.8, color, 0.82, 0.85, 0);
+  b.ico(0.3, C.apple, -0.65, 1.07, 0.93, { sz: 0.25 });
+  b.ico(0.3, C.apple, -0.65, 1.07, -0.93, { sz: 0.25 });
+  for (const x of [1.45, -0.5, -1.5]) {
     for (const z of [0.8, -0.8]) b.cyl(0.36, 0.3, 0x222831, x, 0.36, z - 0.15 * Math.sign(z), { seg: 10, rx: Math.PI / 2 });
   }
-  b.box(0.08, 0.2, 0.3, 0xfff3b0, 2.2, 0.75, 0.6);
-  b.box(0.08, 0.2, 0.3, 0xfff3b0, 2.2, 0.75, -0.6);
-  return b.mesh();
+  b.box(0.08, 0.2, 0.3, 0xfff3b0, 2.26, 0.75, 0.6);
+  b.box(0.08, 0.2, 0.3, 0xfff3b0, 2.26, 0.75, -0.6);
+  b.box(0.06, 0.15, 0.3, 0xff4d4d, -2.2, 0.6, 0.6);
+  b.box(0.06, 0.15, 0.3, 0xff4d4d, -2.2, 0.6, -0.6);
+  g.add(b.mesh());
+  // 8 kratten: 2 rijen van 4 langs de laadbak
+  const cargo = [];
+  for (let k = 0; k < 8; k++) {
+    const cb = new Builder();
+    cb.box(0.62, 0.55, 0.72, k % 3 ? C.wood : 0xd29a62, 0, 0, 0);
+    cb.ico(0.12, C.apple, -0.12, 0.56, 0.1);
+    cb.ico(0.12, C.apple, 0.14, 0.57, -0.08);
+    const m = cb.mesh();
+    m.position.set(0.35 - Math.floor(k / 2) * 0.72, 0.78, k % 2 ? 0.4 : -0.4);
+    m.visible = false;
+    g.add(m);
+    cargo.push(m);
+  }
+  g.userData.cargo = cargo;
+  return g;
 }
 
 export function forklift() {

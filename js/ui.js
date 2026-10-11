@@ -109,7 +109,7 @@ export class UI {
       case 'modal-close': this.closeModal(); break;
       case 'sound': g.setSound(!this.state.settings.sound); break;
       case 'music': g.setMusic(!this.state.settings.music); break;
-      case 'quality': g.setQuality(this.state.settings.quality === 'high' ? 'low' : 'high'); break;
+      case 'quality': g.setQuality(d.v || (this.state.settings.quality === 'high' ? 'low' : 'high')); break;
       case 'save': g.save(); this.toast('Spel opgeslagen', 'save'); break;
       case 'reset-confirm': this.confirmReset(); break;
       case 'reset': g.hardReset(); break;
@@ -202,6 +202,8 @@ export class UI {
     return `<div class="milestone"><div class="ms-text">Mijlpaal level ${next}: <b>productie x2</b></div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
   }
 
+  // Kaart van één station. Alleen cijfers die helpen beslissen: wat het nu doet, wat de upgrade
+  // oplevert, en een korte waarschuwing (met cijfers) als deze schakel vastloopt.
   stationPanel(st) {
     return {
       icon: stationGlyph(st, LINES),
@@ -209,63 +211,71 @@ export class UI {
         const s = this.state;
         const now = Date.now();
         const prod = this.game.prod;
+        const ss = E.computeProduction(s, now, true);
+        const pm = E.priceMult(s);
         const q = E.upgradeQuote(s, st.kind, st.i || 0, this.buyAmount);
-        let title, rows = [], extra = '';
         const level = E.stationLevel(s, st.kind, st.i);
         const after = structuredClone(s);
         if (st.kind === 'orchard') after.orchard += q.count;
         else if (st.kind === 'sales') after.sales += q.count;
         else after.lines[st.i] += q.count;
+        const ssNext = E.computeProduction(after, now, true);
         const goTo = (kind, label) => `<button class="btn small" data-action="station" data-st='{"kind":"${kind}"}'>${label}</button>`;
+        const warn = (text, btn = '') => `<div class="tip warn">${icon('alert')}<span>${text}</span>${btn}</div>`;
+        let title;
+        let sub = `Level <b>${level}</b>`;
+        const rows = [];
+        let extra = '';
         if (st.kind === 'orchard') {
           title = ORCHARD.name;
-          rows.push(['Appels per seconde', fmt(E.orchardRate(s)), fmt(E.orchardRate(s, level + q.count))]);
-          rows.push(['Verbruikt door machines', fmt(prod.used) + '/s']);
-          rows.push(['Appelbak', `${Math.round(Math.min(1, s.apples / prod.binCap) * 100)}% vol`]);
-          if (prod.binFull) {
-            extra = `<div class="tip warn">${icon('alert')} De appelbak is vol, je plukkers staan stil. Je machines kunnen de appels niet bijhouden: upgrade een productielijn of open een nieuwe.</div>`;
-          } else if (prod.lines.some((l) => l.status === 'apples')) {
-            extra = `<div class="tip warn">${icon('alert')} Je machines hebben meer appels nodig dan de boomgaard plukt. Upgraden loont!</div>`;
-          } else {
-            extra = `<div class="tip">De plukkers verzamelen appels in de appelbak. Is de bak vol, dan stoppen ze met plukken.</div>`;
-          }
+          const demand = LINES.reduce((t, l, i) => t + E.lineRate(s, i) * l.apples, 0);
+          rows.push(['Plukken', fmt(E.orchardRate(s)) + ' appels/s', fmt(E.orchardRate(after)) + '/s']);
+          rows.push(['Machines kunnen verwerken', fmt(demand) + ' appels/s']);
+          rows.push(['Appelbak', `${fmt(s.apples)} / ${fmt(prod.binCap)}`]);
+          const np = E.pickerLevel(level);
+          rows.push(['Plukkers', String(E.pickerCount(level)) + (np ? ` <small>(+1 op level ${np})</small>` : '')]);
+          if (prod.binFull && demand <= 0) extra = warn('Appelbak vol: bouw een machine om de appels te verwerken.');
+          else if (prod.binFull) extra = warn(`Appelbak vol: je plukkers staan stil. De machines verwerken ${fmt(demand)} van de ${fmt(E.orchardRate(s))} appels/s.`, goTo('stations', 'Machines'));
+          else if (demand > E.orchardRate(s) * 1.02) extra = warn(`Te weinig appels: de machines willen ${fmt(demand)} appels/s, je plukt er ${fmt(E.orchardRate(s))}.`);
         } else if (st.kind === 'sales') {
           title = SALES.name;
-          const pm = E.priceMult(s);
-          rows.push(['Vervoer per seconde', money(E.transportRate(s) * pm), money(E.transportRate(s, level + q.count) * pm)]);
-          rows.push(['Vrachtwagens', String(E.truckCount(level)), E.truckCount(level + q.count) > E.truckCount(level) ? String(E.truckCount(level + q.count)) : '']);
-          rows.push(['Aanvoer uit de fabriek', money(prod.output * pm) + '/s']);
-          rows.push(['Magazijn', `${Math.round(Math.min(1, s.goods / prod.storeCap) * 100)}% vol`]);
-          if (prod.storeFull) {
-            extra = `<div class="tip warn">${icon('alert')} Het magazijn is vol en je productielijnen lopen vast. Upgrade de vrachtwagens!</div>`;
-          } else {
-            extra = `<div class="tip">De vrachtwagens brengen alles uit het magazijn naar de markt. Kunnen ze het niet bijhouden, dan loopt het magazijn vol.</div>`;
-          }
+          const trucks = E.truckCount(level);
+          const use = ss.transport > 0 ? Math.min(1, ss.potential / ss.transport) : 0;
+          rows.push(['Vervoer', money(E.transportRate(s) * pm * 60) + '/min', money(E.transportRate(after) * pm * 60) + '/min']);
+          rows.push(['Lading per rit', money(E.truckCapacity(s) * pm), money(E.truckCapacity(after) * pm)]);
+          rows.push(['Vrachtwagens', `${trucks} van 6`, E.truckCount(level + q.count) > trucks ? `${E.truckCount(level + q.count)}` : '']);
+          rows.push(['Aanbod uit de fabriek', money(ss.potential * pm * 60) + '/min']);
+          rows.push(['Bezetting', Math.round(use * 100) + '%']);
+          rows.push(['Magazijn', `${money(s.goods * pm)} / ${money(prod.storeCap * pm)}`]);
+          if (prod.storeFull) extra = warn(`Magazijn vol: je lijnen lopen vast. De fabriek levert ${money(ss.potential * pm * 60)}/min, je vervoert ${money(ss.transport * pm * 60)}/min.`);
         } else {
           const l = LINES[st.i];
           const lp = prod.lines[st.i];
           title = l.name;
-          // wat déze lijn oplevert, nu en na de upgrade (als de keten het kan bijhouden)
-          const ssNow = E.computeProduction(s, now, true);
-          const ssNext = E.computeProduction(after, now, true);
-          rows.push(['Verdient', money(ssNow.lines[st.i].income) + '/s', money(ssNext.lines[st.i].income) + '/s']);
-          rows.push(['Capaciteit', fmt(lp.max) + ' per s', fmt(E.lineRate(after, st.i)) + ' per s']);
-          rows.push(['Appelverbruik', fmt(lp.max * l.apples) + '/s', fmt(E.lineRate(after, st.i) * l.apples) + '/s']);
-          if (lp.status !== 'full' && ssNext.output > ssNext.transport * 1.001) {
-            extra = `<div class="tip">Let op: je vrachtwagens kunnen niet alles meer vervoeren. Upgrade ze ook, anders loopt het magazijn vol. ${goTo('sales', 'Naar vrachtwagens')}</div>`;
-          }
-          if (lp.status === 'full') {
-            extra = `<div class="tip warn">${icon('alert')} Vastgelopen: het magazijn is vol. De vrachtwagens kunnen het niet bijhouden. ${goTo('sales', 'Naar vrachtwagens')}</div>`;
-          } else if (lp.status === 'apples') {
-            extra = `<div class="tip warn">${icon('alert')} Te weinig appels! Deze machine kan ${fmt(lp.max)}/s maken maar krijgt genoeg voor ${fmt(lp.rate)}/s. ${goTo('orchard', 'Naar boomgaard')}</div>`;
-          }
+          sub += ` · ${l.machine}`;
+          const maxNext = E.lineRate(after, st.i);
+          rows.push(['Productie nu', `${fmt(lp.rate)}/s`]);
+          rows.push(['Capaciteit', `${fmt(lp.max)}/s`, fmt(maxNext) + '/s']);
+          // de pijl toont wat de upgrade echt extra oplevert voor je hele fabriek (vervoer en appels meegerekend)
+          const extraIncome = Math.max(0, ssNext.income - ss.income);
+          rows.push(['Opbrengst', money(ss.lines[st.i].income * 60) + '/min', '+' + money(extraIncome * 60) + '/min']);
+          rows.push(['Prijs per stuk', money(l.value * pm)]);
+          rows.push(['Appelverbruik', `${fmt(lp.rate * l.apples)}/s <small>(${l.apples} per stuk)</small>`]);
+          const batch = this.game.world.beltBatch(st.i);
+          if (batch >= 1.5) rows.push(['Op de band', `1 bakje = ${fmt(batch)} stuks`]);
+          const free = Math.max(0, (ss.transport - ss.potential) * pm * 60);
+          const nextLine = ssNext.lines[st.i];
+          if (lp.status === 'full') extra = warn('Magazijn vol: deze lijn staat stil tot de vrachtwagens het magazijn leeghalen.', goTo('sales', 'Vrachtwagens'));
+          else if (lp.status === 'apples') extra = warn(`Te weinig appels: deze machine krijgt ${fmt(lp.rate * l.apples)} van de ${fmt(lp.max * l.apples)} appels/s die hij nodig heeft.`, goTo('orchard', 'Boomgaard'));
+          else if (ssNext.potential > ssNext.transport * 1.001) extra = warn(`Na deze upgrade kunnen de vrachtwagens het niet bijhouden (nog ${money(free)}/min vrij).`, goTo('sales', 'Vrachtwagens'));
+          else if (nextLine.status === 'apples') extra = warn('Na deze upgrade heeft de machine te weinig appels. Upgrade ook de boomgaard.', goTo('orchard', 'Boomgaard'));
         }
         const html = `
           ${this.milestoneBar(level, st.kind)}
           <div class="stats">${rows.map((r) => `<div class="row"><span>${r[0]}</span><b>${r[1]}</b>${r[2] ? `<em>→ ${r[2]}</em>` : ''}</div>`).join('')}</div>
           ${extra}
           <div class="buy-row">${this.amountToggle()}${this.buyButton(st.kind, st.i || 0)}</div>`;
-        return { title, sub: `Level <b>${level}</b>${st.kind === 'line' ? ' · ' + money(LINES[st.i].value * E.priceMult(s)) + ' per stuk · ' + LINES[st.i].apples + (LINES[st.i].apples === 1 ? ' appel' : ' appels') + ' per stuk' : ''}`, html };
+        return { title, sub, html };
       },
     };
   }
@@ -287,6 +297,7 @@ export class UI {
             <button class="btn green small ${can ? '' : 'disabled'}" data-action="upgrade" data-hold data-kind="${st.kind}" data-i="${st.i || 0}">+${q.count}<br><small>${money(q.cost)}</small></button>
           </div>`;
         };
+        const ssl = E.computeProduction(s, 0, true);
         let html = this.weakBox() + this.amountToggle();
         const fill = (x) => `<span class="mini-bar ${x > 0.97 ? 'full' : ''}"><i style="width:${Math.round(Math.min(1, x) * 100)}%"></i></span>`;
         html += row({ kind: 'orchard' }, glyph('orchard'), `Boomgaard <span class="lv">Lv ${s.orchard}</span>`, `${fmt(prod.supply)} appels/s · bak ${fill(s.apples / prod.binCap)}${prod.binFull ? ' <span class="warn-text">vol</span>' : ''}`);
@@ -294,7 +305,7 @@ export class UI {
           if (s.lines[i] > 0) {
             const lp = prod.lines[i];
             const warn = lp.status === 'full' ? ' · <span class="bad-text">vastgelopen</span>' : lp.status === 'apples' ? ' · <span class="warn-text">te weinig appels</span>' : '';
-            html += row({ kind: 'line', i }, glyph(l.id), `${l.name} <span class="lv">Lv ${s.lines[i]}</span>`, `${fmt(lp.rate)}/s · ${money(lp.income)}/s${warn}`);
+            html += row({ kind: 'line', i }, glyph(l.id), `${l.name} <span class="lv">Lv ${s.lines[i]}</span>`, `${fmt(lp.rate)}/s · ${money(ssl.lines[i].income * 60)}/min${warn}`);
           } else if (E.lineUnlockable(s, i)) {
             const can = s.money >= l.unlock;
             html += `<div class="list-row locked"><span class="li-icon">${glyph(l.id)}</span><span class="li-text"><b>${l.name}</b><small>Nieuwe productielijn</small></span>
@@ -305,8 +316,9 @@ export class UI {
               <button class="btn small" data-action="open" data-v="expand">Bekijk</button></div>`;
           }
         });
-        html += row({ kind: 'sales' }, glyph('sales'), `Vrachtwagens <span class="lv">Lv ${s.sales}</span>`, `${money(prod.transport * E.priceMult(s))}/s · magazijn ${fill(s.goods / prod.storeCap)}${prod.storeFull ? ' <span class="bad-text">vol</span>' : ''}`);
-        return { title: 'Je fabriek', sub: `${TIERS[s.tier].name} · ${money(prod.income)}/s`, html };
+        const use = ssl.transport > 0 ? Math.round(Math.min(1, ssl.potential / ssl.transport) * 100) : 0;
+        html += row({ kind: 'sales' }, glyph('sales'), `Vrachtwagens <span class="lv">Lv ${s.sales}</span>`, `${money(prod.transport * E.priceMult(s) * 60)}/min · bezet ${use}% · magazijn ${fill(s.goods / prod.storeCap)}${prod.storeFull ? ' <span class="bad-text">vol</span>' : ''}`);
+        return { title: 'Je fabriek', sub: `${TIERS[s.tier].name} · ≈ ${money(E.incomePerSecond(s) * 60)}/min`, html };
       },
     };
   }
@@ -357,9 +369,8 @@ export class UI {
             ${series.map(([k, , color]) => `<path d="${path(k)}" fill="none" stroke="${color}" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`).join('')}</svg>
             <div class="legend">${series.map(([, label, color]) => `<span><i style="background:${color}"></i>${label}</span>`).join('')}<span>laatste ${mins} min</span></div></div>`;
         }
-        const html = `<div class="chain-bars">${bars}</div>${chart}
-          <div class="tip">Alles is omgerekend naar appels per seconde. De kortste balk is de zwakste schakel: daar loopt je fabriek op vast. Tik op een balk om die te upgraden.</div>`;
-        return { title: 'Ketenbalans', sub: 'Plukken, verwerken en vervoeren', html };
+        const html = `<div class="chain-bars">${bars}</div>${chart}`;
+        return { title: 'Ketenbalans', sub: 'Alles in appels per seconde', html };
       },
     };
   }
@@ -374,10 +385,14 @@ export class UI {
         const owned = RESEARCH.filter((r) => s.research[r.id]);
         let html = '';
         if (avail.length === 0 && locked.length === 0) html += `<div class="tip">Alles onderzocht!</div>`;
+        const base = E.incomePerSecond(s);
         html += avail.map((r) => {
           const can = s.money >= r.cost;
+          const c = structuredClone(s);
+          c.research[r.id] = true;
+          const gain = E.incomePerSecond(c) - base;
           return `<div class="card research">
-            <div class="card-text"><b>${r.name}</b><small>${r.desc}</small></div>
+            <div class="card-text"><b>${r.name}</b><small>${r.desc}${gain > 0 ? ` · <span class="gain">+${money(gain * 60)}/min</span>` : ''}</small></div>
             <button class="btn blue small ${can ? '' : 'disabled'}" data-action="research" data-id="${r.id}">${money(r.cost)}</button></div>`;
         }).join('');
         html += locked.slice(0, 3).map((r) => {
@@ -402,8 +417,12 @@ export class UI {
         LINES.forEach((l, i) => {
           if (E.lineUnlockable(s, i)) {
             const can = s.money >= l.unlock;
+            const c = structuredClone(s);
+            c.lines[i] = 1;
+            const cp = E.computeProduction(c, 0, true).lines[i];
             html += `<div class="card highlight"><div class="big-icon">${glyph(l.id)}</div><div class="card-text"><b>Nieuwe lijn: ${l.name}</b>
-              <small>${l.machine} · ${l.apples} appels per product · ${money(l.value)} per stuk</small></div>
+              <small>${money(l.value * E.priceMult(s))} per stuk · ${l.apples} ${l.apples === 1 ? 'appel' : 'appels'} per stuk</small>
+              <small>Op level 1: ${fmt(E.lineRate(c, i))}/s, levert ${money(cp.income * 60)} per minuut</small></div>
               <button class="btn orange ${can ? '' : 'disabled'}" data-action="unlock" data-i="${i}">${money(l.unlock)}</button></div>`;
           }
         });
@@ -464,7 +483,8 @@ export class UI {
         const html = `
           <div class="list-row"><span class="li-text"><b>Muziek</b><small>Factory Flow</small></span><button class="btn small ${s.settings.music ? 'green' : ''}" data-action="music">${s.settings.music ? 'Aan' : 'Uit'}</button></div>
           <div class="list-row"><span class="li-text"><b>Geluidseffecten</b></span><button class="btn small ${s.settings.sound ? 'green' : ''}" data-action="sound">${s.settings.sound ? 'Aan' : 'Uit'}</button></div>
-          <div class="list-row"><span class="li-text"><b>Graphics</b><small>Laag is sneller op oudere telefoons</small></span><button class="btn small" data-action="quality">${s.settings.quality === 'high' ? 'Hoog' : 'Laag'}</button></div>
+          <div class="list-row"><span class="li-text"><b>Graphics</b><small>Laag: geen schaduwen, lagere resolutie</small></span>
+            <div class="amounts"><button class="amt ${s.settings.quality === 'high' ? 'on' : ''}" data-action="quality" data-v="high">Hoog</button><button class="amt ${s.settings.quality !== 'high' ? 'on' : ''}" data-action="quality" data-v="low">Laag</button></div></div>
           <div class="stats">
             <div class="row"><span>Speeltijd</span><b>${duration(s.playTime)}</b></div>
             <div class="row"><span>Totaal verdiend</span><b>${money(s.totalEarned)}</b></div>
@@ -557,7 +577,8 @@ export class UI {
 
     if (now - this.lastSlow > 250) {
       this.lastSlow = now;
-      this.el.income.textContent = `+${money(prod.income)}/s`;
+      // geld komt binnen per vertrekkende vrachtwagen; we tonen het gemiddelde per minuut
+      this.el.income.textContent = `≈ ${money(E.incomePerSecond(s) * 60)}/min`;
       this.el.inv.textContent = fmt(s.investors);
       this.updateTutorial();
       if (tutorialDone(s)) this.updateGoal(prod.income);
@@ -628,27 +649,11 @@ export class UI {
     this.el.goal.classList.toggle('done', done);
   }
 
-  // Opbrengst van een vertrekkende vrachtwagen: munten vliegen naar je geldteller.
-  truckCash(world, pos, amount) {
-    const p = world.toScreen(pos.clone().setY(3));
-    if (!p.visible || p.x < 0 || p.x > window.innerWidth || p.y < 0 || p.y > window.innerHeight) return;
+  // Een vrachtwagen vertrekt met zijn lading: daar verdien je je geld.
+  truckSale(world, k, amount) {
+    const p = world.toScreen(world.truckPosition(k).setY(3.2));
+    if (!p.visible || p.x < 0 || p.x > window.innerWidth || p.y < 60 || p.y > window.innerHeight) return;
     this.float(p.x, p.y, '+' + money(amount), 'cash');
-    const r = this.el.moneyCard.getBoundingClientRect();
-    const tx = r.left + 32, ty = r.top + r.height / 2;
-    for (let k = 0; k < 6; k++) {
-      const c = document.createElement('div');
-      c.className = 'coin-fly';
-      const sx = p.x + (Math.random() - 0.5) * 40, sy = p.y + (Math.random() - 0.5) * 30;
-      c.style.transform = `translate(${sx}px, ${sy}px)`;
-      document.body.appendChild(c);
-      setTimeout(() => { c.style.transform = `translate(${tx}px, ${ty}px) scale(0.7)`; c.style.opacity = '0'; }, 30 + k * 60);
-      setTimeout(() => c.remove(), 1000 + k * 60);
-    }
-    setTimeout(() => {
-      this.el.moneyCard.classList.remove('bump');
-      void this.el.moneyCard.offsetWidth;
-      this.el.moneyCard.classList.add('bump');
-    }, 750);
   }
 
   updateBadges() {

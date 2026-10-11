@@ -23,6 +23,7 @@ function migrate(d) {
   s.stats = { ...base.stats, ...(d.stats || {}) };
   s.research = d.research || {};
   s.lines = LINES.map((_, i) => (Array.isArray(d.lines) && Number.isFinite(d.lines[i]) ? d.lines[i] : base.lines[i]));
+  if (!Array.isArray(s.trucks)) s.trucks = [];
   for (const k of ['money', 'runEarned', 'totalEarned', 'investors', 'orchard', 'sales', 'tier', 'apples', 'goods', 'tutorial']) {
     if (!Number.isFinite(s[k])) s[k] = base[k];
   }
@@ -121,9 +122,9 @@ const game = {
 
   claimGoal() {
     const g = goalAt(state.goal);
-    const p = goalProgress(g, state, this.prod.income);
+    const p = goalProgress(g, state, E.incomePerSecond(state));
     if (p.cur < p.max) return;
-    const reward = goalReward(g, this.prod.income);
+    const reward = goalReward(g, E.incomePerSecond(state));
     E.earn(state, reward);
     state.goal++;
     sfx.coin();
@@ -147,7 +148,7 @@ const game = {
 
   collectGolden() {
     if (!world.golden.visible) return;
-    const reward = Math.max(GOLDEN.minReward, this.prod.income * GOLDEN.incomeSeconds);
+    const reward = Math.max(GOLDEN.minReward, E.incomePerSecond(state) * GOLDEN.incomeSeconds);
     E.earn(state, reward);
     state.stats.golden++;
     sfx.coin();
@@ -202,15 +203,8 @@ try {
   throw e;
 }
 game.world = world;
-// geld dat de vrachtwagens opleveren tonen we per vertrekkende vrachtwagen
-game.salesAccum = 0;
 const ui = new UI(game);
 game.ui = ui;
-world.onTruckDepart = (k, pos) => {
-  const amount = game.salesAccum;
-  game.salesAccum = 0;
-  if (amount > 0) { ui.truckCash(world, pos, amount); sfx.coin(); }
-};
 
 function handleGap(gap) {
   const secs = Math.min(gap, OFFLINE.maxHours * 3600);
@@ -234,9 +228,10 @@ function frame(t) {
   state.lastTick = now;
   if (gap > 30) handleGap(gap);
   else if (gap > 0) {
-    const before = state.runEarned;
-    E.tick(state, gap, now);
-    game.salesAccum += state.runEarned - before;
+    // geld alleen bij vertrek van een vrachtwagen
+    const sales = [];
+    E.tick(state, gap, now, sales);
+    for (const ev of sales) { ui.truckSale(world, ev.truck, ev.amount); sfx.coin(); }
   }
 
   game.prod = E.computeProduction(state, now);
@@ -277,3 +272,4 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) game.
 
 // voor debuggen in de console
 window.appelTycoon = game;
+game.E = E;

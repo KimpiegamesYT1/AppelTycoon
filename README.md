@@ -21,7 +21,8 @@ Je begint met een schuurtje, een paar appelbomen en één vrachtwagen. Een korte
 
 - **Boomgaard** – plukkers vullen de appelbak. Is de bak vol, dan stoppen ze met plukken.
 - **8 productielijnen** – Verse Appels, Appelsap, Appelmoes, Appelchips, Appeltaart, Appelcider, Appelstroop en Karamelappels. Elke machine heeft appels nodig; te weinig appels en hij draait langzamer.
-- **Vrachtwagens** – brengen alles uit het magazijn naar de markt. Kunnen ze het niet bijhouden, dan loopt het magazijn vol en lopen je productielijnen vast. Op level 10, 20, 50, 100 en 200 krijgt het magazijn een extra laadplek met een extra vrachtwagen. Elke vertrekkende vrachtwagen laat zien wat hij heeft opgeleverd.
+- **Geld verdien je alleen met verkochte producten**: een vrachtwagen laadt aan de deur, vertrekt (dan is de lading verkocht) en komt leeg terug. Vrachtwagens vertrekken nooit leeg.
+- **Vrachtwagens** – brengen alles uit het magazijn naar de markt. Kunnen ze het niet bijhouden, dan loopt het magazijn vol en lopen je productielijnen vast. Op level 10, 20, 50, 100 en 200 krijgt het magazijn een extra laadplek met een extra vrachtwagen. Boven elke vertrekkende vrachtwagen zie je wat de lading opleverde.
 - **Ketenbalans** – een paneel met staven en een grafiek van plukken, verwerken en vervoeren (alles in appels per seconde), zodat je ziet welke schakel het zwakst is.
 - De banden vormen één netwerk (toevoerband → lijnen → verzamelband → magazijn). Loopt het magazijn vol, dan hopen producten zich zichtbaar op tot aan de machines.
 - Je moet dus steeds de zwakste schakel upgraden. De labels boven de stations laten zien hoe vol de appelbak en het magazijn zijn, en een uitroepteken als een lijn te weinig appels krijgt (oranje) of vastloopt (rood).
