@@ -680,7 +680,8 @@ export class UI {
   update(now) {
     const s = this.state;
     const prod = this.game.prod;
-    this.el.money.textContent = money(s.money);
+    const m = money(s.money);
+    if (m !== this.shownMoney) { this.shownMoney = m; this.el.money.textContent = m; }
     this.updateLabels(now);
 
     if (now - this.lastSlow > 250) {
@@ -870,8 +871,11 @@ export class UI {
         el.classList.toggle('edge', out);
       }
       const hide = !p.visible || (zoomedOut && a.st.kind === 'line');
-      el.style.display = hide ? 'none' : '';
-      el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
+      // alleen de DOM aanraken als er echt iets verandert (scheelt veel werk als de camera stilstaat)
+      if (el._hide !== hide) { el._hide = hide; el.style.display = hide ? 'none' : ''; }
+      if (hide) continue;
+      const tf = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
+      if (el._tf !== tf) { el._tf = tf; el.style.transform = tf; }
     }
     for (const [k, el] of this.labels) {
       if (!keys.has(k)) { el.remove(); this.labels.delete(k); }

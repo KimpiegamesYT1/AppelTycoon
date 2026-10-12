@@ -21,6 +21,15 @@ const DEPOT = new THREE.Vector3((DX0 + DX1) / 2, 0, (DZ0 + DZ1) / 2);
 const DEPOT_IN = DX0 + 1.5;
 const dockZ = (k) => -3.6 + k * 3.6;
 const BELT_SPEED = 3;
+// Stappen van de prestatieregelaar: maximale pixeldichtheid, schaduwen elk zoveelste beeld, schaduwkaart.
+const PERF_LEVELS = [
+  { dpr: 3, shadowEvery: 1, shadowMap: 2048 },
+  { dpr: 3, shadowEvery: 2, shadowMap: 2048 },
+  { dpr: 2.25, shadowEvery: 2, shadowMap: 2048 },
+  { dpr: 1.75, shadowEvery: 2, shadowMap: 2048 },
+  { dpr: 1.5, shadowEvery: 3, shadowMap: 1024 },
+  { dpr: 1.25, shadowEvery: 3, shadowMap: 1024 },
+];
 
 export const lineZ = (i) => LZ0 + i * LINE_SPACING;
 const hallEnd = (slots) => lineZ(slots - 1) + 3;
@@ -32,12 +41,15 @@ const SCREEN_RIGHT = new THREE.Vector3(Math.cos(AZ), 0, -Math.sin(AZ));
 const SCREEN_UP = new THREE.Vector3(-Math.sin(AZ), 0, -Math.cos(AZ));
 
 const dummy = new THREE.Object3D();
+const SUN_OFFSET = new THREE.Vector3(-30, 70, 40);
 const LAMP_ON = new THREE.MeshBasicMaterial({ color: 0x4cff7a });
 const LAMP_OFF = new THREE.MeshBasicMaterial({ color: 0xff4d4d });
 
 function disposeTree(obj) {
   obj.traverse((o) => {
     if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose();
+    // kratten-sets: de buffers met posities ook vrijgeven
+    if (o.isInstancedMesh) o.dispose();
   });
 }
 
@@ -63,7 +75,8 @@ class Pool {
   }
   end() {
     this.mesh.count = this.n;
-    this.mesh.instanceMatrix.needsUpdate = true;
+    this.mesh.visible = this.n > 0;
+    if (this.n > 0) this.mesh.instanceMatrix.needsUpdate = true;
   }
 }
 
@@ -227,6 +240,9 @@ export class World {
 
     const hemi = new THREE.HemisphereLight(0xffffff, 0x7fb069, 1.25);
     this.scene.add(hemi);
+    try { this.perfLevel = Math.min(PERF_LEVELS.length - 1, Math.max(0, +localStorage.getItem('appelTycoonPerf') || 0)); } catch (e) { this.perfLevel = 0; }
+    this.renderer.shadowMap.autoUpdate = false;
+    this.frameNo = 0;
     this.sun = new THREE.DirectionalLight(0xfff1d6, 2.1);
     this.sun.castShadow = true;
     this.sun.shadow.bias = -0.0004;
@@ -259,17 +275,73 @@ export class World {
 
   // Hoog: scherpe beelden (tot 3x pixeldichtheid) met zachte schaduwen.
   // Zuinig: tot 1,5x pixeldichtheid, geen schaduwen en 30 beelden per seconde (zie main.js).
+  // Op 'hoog' houdt een regelaar het spel vloeiend op minder snelle toestellen (zie perfSample).
   setQuality(q) {
     this.quality = q;
     const high = q === 'high';
     const dpr = window.devicePixelRatio || 1;
-    this.renderer.setPixelRatio(high ? Math.min(dpr, 3) : Math.min(dpr, 1.5));
+    const p = PERF_LEVELS[high ? this.perfLevel || 0 : 0];
+    this.renderer.setPixelRatio(high ? Math.min(dpr, p.dpr) : Math.min(dpr, 1.5));
     this.sun.castShadow = high;
-    if (high && this.sun.shadow.mapSize.x !== 2048) {
-      this.sun.shadow.mapSize.set(2048, 2048);
+    const size = high ? p.shadowMap : 2048;
+    if (high && this.sun.shadow.mapSize.x !== size) {
+      this.sun.shadow.mapSize.set(size, size);
       if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
     }
+    this.shadowEvery = high ? p.shadowEvery : 1;
     this.resize?.();
+  }
+
+  // Prestatieregelaar: meet hoe lang een beeld duurt. Haalt het toestel het tempo niet
+  // (gemiddeld onder ~45 beelden per seconde), dan gaat hij een stapje lager: eerst de schaduwen
+  // om het andere beeld bijwerken (niet te zien), dan iets minder pixels. Snelle toestellen merken niets.
+  perfSample(raw) {
+    if (this.quality !== 'high') return;
+    const pf = this.perf || (this.perf = { sum: 0, n: 0, since: 0, bad: 0, good: 0, ups: 0 });
+    // na een pauze (andere app, laden, nieuwe hal) even niet meten
+    if (raw > 1) { pf.sum = 0; pf.n = 0; pf.since = 0; return; }
+    pf.since += raw;
+    if (pf.since < 3) return;
+    pf.sum += raw;
+    pf.n++;
+    if (pf.sum < 2) return;
+    const avg = pf.sum / pf.n;
+    pf.sum = 0;
+    pf.n = 0;
+    const level = this.perfLevel || 0;
+    if (pf.locked) return;
+    // hielp de vorige stap omlaag niet (bv. een telefoon in energiebesparing die op 30 beelden
+    // per seconde vastzit), dan zetten we hem terug en laten we het verder zo
+    if (pf.check) {
+      const before = pf.check;
+      pf.check = 0;
+      const capped = before > 0.031 && before < 0.0355;
+      if (capped && avg > before * 0.9) { pf.locked = true; this.setPerfLevel(level - 1); return; }
+    }
+    if (avg > 1 / 45) {
+      pf.good = 0;
+      // twee trage metingen achter elkaar (of één heel trage): een stapje lager
+      pf.bad += avg > 1 / 20 ? 2 : 1;
+      if (pf.bad >= 2 && level < PERF_LEVELS.length - 1) {
+        pf.bad = 0;
+        pf.check = avg;
+        // ging het na een stap omhoog weer mis, dan niet nog eens proberen
+        if (pf.lastUp) pf.ups = Infinity;
+        pf.lastUp = false;
+        this.setPerfLevel(level + 1);
+      }
+    } else {
+      pf.bad = 0;
+      // lang ruim op tempo: voorzichtig weer een stapje hoger (hooguit twee keer per sessie)
+      if (avg < 1 / 58 && ++pf.good >= 10 && level > 0 && pf.ups < 2) { pf.good = 0; pf.ups++; pf.lastUp = true; this.setPerfLevel(level - 1); }
+    }
+  }
+
+  setPerfLevel(level) {
+    this.perfLevel = level;
+    if (this.perf) this.perf.since = 0;
+    try { localStorage.setItem('appelTycoonPerf', String(level)); } catch (e) { /* geen opslag */ }
+    this.setQuality(this.quality);
   }
 
   // ---------- Opbouw ----------
@@ -308,6 +380,7 @@ export class World {
       l.rotation.y = 0;
       deco.add(l);
     }
+    M.mergeStatic(deco);
     this.scene.add(deco);
   }
 
@@ -583,6 +656,9 @@ export class World {
     // ---- Extra gebouwen bij grote uitbreidingen ----
     this.buildLandmarks(g, tier);
 
+    // alles wat stilstaat samenvoegen (de appelbak stuitert en de lege plekken verdwijnen, die blijven los)
+    M.mergeStatic(g, new Set([this.binMesh, ...this.slotMarks.map((sm) => sm.mark)]));
+
     this.builtTier = tier;
     this.builtSlots = slots;
     this.zEnd = zEnd;
@@ -691,7 +767,6 @@ export class World {
     g.add(rail);
 
     // stellingen; de kratten erin laten zien hoe vol het magazijn is
-    this.storeCrates = [];
     const rz = [DZ0 + 0.9];
     if (nDocks >= 3) rz.push(nDocks >= 4 ? 5.6 : 3.0);
     if (nDocks >= 5) rz.push(10.6);
@@ -701,17 +776,14 @@ export class World {
       r.position.set(x, 0.3, z);
       g.add(r);
     }
+    const shelfSlots = [];
     for (let lvl = 0; lvl < 3; lvl++) {
       for (const [x, z, bays] of racks) {
-        for (let bay = 0; bay < bays; bay++) {
-          const c = M.shelfCrate(bay + lvl * 3);
-          c.position.set(x + 0.55 + bay * 1.1, 0.3 + 0.11 + lvl * 0.85, z);
-          c.visible = false;
-          g.add(c);
-          this.storeCrates.push(c);
-        }
+        for (let bay = 0; bay < bays; bay++) shelfSlots.push({ x: x + 0.55 + bay * 1.1, y: 0.3 + 0.11 + lvl * 0.85, z, v: bay % 3 });
       }
     }
+    this.storeCrates = new M.CrateSet([0, 1, 2].map((v) => M.shelfCrateGeometry(v)), shelfSlots);
+    g.add(this.storeCrates);
     // laaddeuren met een pallet die klaarstaat voor de vrachtwagen (alleen in het gebouwde deel)
     this.docks = [];
     for (let k = 0; k < 6; k++) {
@@ -723,19 +795,21 @@ export class World {
       p.scale.set(1, 0.17, 1);
       p.position.set(DX1 - 1.3, 0.3, dockZ(k));
       g.add(p);
-      const crates = [];
-      for (let c = 0; c < 4; c++) {
-        const cb = new M.Builder();
-        cb.box(0.55, 0.5, 0.55, c % 2 ? M.C.wood : 0xd29a62, 0, 0, 0);
-        cb.ico(0.11, M.C.apple, 0, 0.52, 0);
-        const m = cb.mesh();
-        m.position.set(DX1 - 1.3 + (c % 2 ? 0.28 : -0.28), 0.5 + Math.floor(c / 2) * 0.52, dockZ(k) + (c % 2 ? 0.28 : -0.28) * (c < 2 ? 1 : -1));
-        m.visible = false;
-        g.add(m);
-        crates.push(m);
-      }
-      this.docks.push({ door, pallet: p, crates, staged: 0, userData: door.userData });
+      this.docks.push({ door, pallet: p, staged: 0, userData: door.userData });
     }
+    // kratten op de pallets bij de deuren: één set voor alle deuren (krat c van elke deur na elkaar)
+    const dockGeo = (col) => M.sharedGeometry(`dockCrate:${col}`, () => {
+      const cb = new M.Builder();
+      cb.box(0.55, 0.5, 0.55, col, 0, 0, 0);
+      cb.ico(0.11, M.C.apple, 0, 0.52, 0);
+      return cb;
+    });
+    const dockSlots = [];
+    for (let c = 0; c < 4; c++) {
+      for (let k = 0; k < Math.min(nDocks, this.docks.length); k++) dockSlots.push({ x: DX1 - 1.3 + (c % 2 ? 0.28 : -0.28), y: 0.5 + Math.floor(c / 2) * 0.52, z: dockZ(k) + (c % 2 ? 0.28 : -0.28) * (c < 2 ? 1 : -1), v: c % 2 });
+    }
+    this.dockCrates = new M.CrateSet([dockGeo(0xd29a62), dockGeo(M.C.wood)], dockSlots);
+    g.add(this.dockCrates);
     const sh = M.hitBox(dw + 7, 5, dd, DEPOT.x + 3.5, 0, cz);
     sh.userData.station = { kind: 'sales' };
     sh.userData.depot = true;
@@ -798,6 +872,11 @@ export class World {
       const mover = new PathMover(person, [from, to], 1.6, { offset: (w * 0.37) % 1, stops: { 0: 1.0, 1: 0.8 } });
       this.depotWorkers.push({ person, crate, mover });
     }
+
+    // stilstaande delen samenvoegen; heftrucks, mensen, deuren, pallets en de wikkelarm bewegen
+    const moving = new Set([...this.forklifts.map((f) => f.obj), ...this.depotWorkers.map((w) => w.person), ...this.docks.flatMap((d) => [d.userData.shutter, d.pallet])]);
+    if (this.wrapper) moving.add(this.wrapper);
+    M.mergeStatic(g, moving);
 
     if (!first) {
       this.bounce(g);
@@ -976,8 +1055,7 @@ export class World {
       if (this.binMesh) this.binMesh.userData.heap.visible = bf > 0.02;
       const sf = Math.min(1, state.goods / prod.storeCap);
       this.storeFill = sf;
-      const n = Math.round(sf * this.storeCrates.length);
-      this.storeCrates.forEach((c, k) => { c.visible = k < n; });
+      if (this.storeCrates) this.storeCrates.show(Math.round(sf * this.storeCrates.length));
     }
 
     // Stroom op de banden: tot 2,5 per seconde zie je precies wat de lijn maakt. Daarboven gaan
@@ -1130,7 +1208,7 @@ export class World {
       sc.left = -s; sc.right = s; sc.top = s; sc.bottom = -s; sc.near = 1; sc.far = 220;
       sc.updateProjectionMatrix();
     }
-    this.sun.position.copy(this.target).add(new THREE.Vector3(-30, 70, 40));
+    this.sun.position.copy(this.target).add(SUN_OFFSET);
     this.sun.target.position.copy(this.target);
     this.sun.target.updateMatrixWorld();
   }
@@ -1328,10 +1406,10 @@ export class World {
       const sh = d.userData.shutter;
       sh.position.y += ((open ? 2.75 : 0.3) - sh.position.y) * Math.min(1, dt * 3);
       d.userData.lamp.material = open ? LAMP_ON : LAMP_OFF;
-      const sn = open ? Math.ceil(ready * 4 - 0.05) : 0;
-      d.crates.forEach((c, j) => { c.visible = j < sn; });
       d.pallet.visible = open;
     });
+    // kratten staan alleen klaar bij open deuren (de set bevat alleen die)
+    if (this.dockCrates) this.dockCrates.show(Math.max(0, Math.ceil(ready * 4 - 0.05)) * (this.dockCrates.length / 4));
 
     // plukkers
     for (const p of this.pickers) this.updatePicker(p, dt);
@@ -1370,8 +1448,8 @@ export class World {
       const d = st.t < L ? 0 : ((st.t - L) / (TRUCK.cycle - L)) * tr.mover.total;
       tr.mover.setDistance(d, dt);
       const full = st.t < L ? (this.truckCap > 0 ? st.load / this.truckCap : 0) : tr.mover.seg < 2 ? st.last : 0;
-      const n = Math.round(full * tr.obj.userData.cargo.length);
-      tr.obj.userData.cargo.forEach((c, j) => { c.visible = j < n; });
+      const cargo = tr.obj.userData.cargo;
+      cargo.show(Math.round(full * cargo.length));
     });
     for (const fl of this.forklifts || []) {
       fl.mover.update(dt);
@@ -1427,6 +1505,7 @@ export class World {
     this.confetti.count = n;
     this.confetti.instanceMatrix.needsUpdate = true;
 
+    if (this.sun.castShadow && this.frameNo++ % (this.shadowEvery || 1) === 0) this.renderer.shadowMap.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
   }
 

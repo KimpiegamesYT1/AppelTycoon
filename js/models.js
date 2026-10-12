@@ -184,8 +184,113 @@ export function person(shirt = C.red, cap = C.blue, { basket = false, helmet = f
   return g;
 }
 
-// Vrachtwagen met open laadbak; de kratten in de bak zijn losse delen die je per stuk
-// kunt tonen terwijl de vrachtwagen geladen wordt (userData.cargo).
+// Voegt alle onderdelen die nooit bewegen samen tot één mesh per schaduw-instelling: dat scheelt
+// veel tekenopdrachten (vooral op minder snelle telefoons) en ziet er precies hetzelfde uit.
+// keep: objecten (en alles daaronder) die los moeten blijven omdat ze bewegen of verdwijnen.
+export function mergeStatic(root, keep = new Set()) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const buckets = new Map();
+  root.traverse((o) => {
+    if (!o.isMesh || o.isInstancedMesh || o.material !== MAT || !o.geometry.attributes.color) return;
+    for (let p = o; p && p !== root; p = p.parent) if (keep.has(p) || !p.visible) return;
+    const key = `${o.castShadow}|${o.receiveShadow}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(o);
+  });
+  for (const [key, list] of buckets) {
+    if (list.length < 2) continue;
+    const geos = list.map((o) => {
+      const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+      return g;
+    });
+    let count = 0;
+    for (const g of geos) count += g.attributes.position.count;
+    const pos = new Float32Array(count * 3);
+    const nor = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    let off = 0;
+    for (const g of geos) {
+      pos.set(g.attributes.position.array, off * 3);
+      nor.set(g.attributes.normal.array, off * 3);
+      col.set(g.attributes.color.array, off * 3);
+      off += g.attributes.position.count;
+      g.dispose();
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.computeBoundingSphere();
+    const [cast, receive] = key.split('|').map((x) => x === 'true');
+    const m = new THREE.Mesh(geo, MAT);
+    m.castShadow = cast;
+    m.receiveShadow = receive;
+    for (const o of list) {
+      o.parent.remove(o);
+      if (!o.geometry.userData.shared) o.geometry.dispose();
+    }
+    root.add(m);
+  }
+  return root;
+}
+
+// Een groep kratten als één tekenopdracht per variant (InstancedMesh). show(n) toont de eerste n,
+// zoals losse kratten die je één voor één zichtbaar maakt, maar veel lichter voor de GPU.
+const _crateDummy = new THREE.Object3D();
+const _crateGeos = new Map();
+export function sharedGeometry(key, build) {
+  let g = _crateGeos.get(key);
+  if (!g) {
+    g = build().geometry();
+    g.userData.shared = true;
+    _crateGeos.set(key, g);
+  }
+  return g;
+}
+
+export class CrateSet extends THREE.Group {
+  // geos: geometrie per variant; slots: [{ x, y, z, v }] in de volgorde waarin ze zichtbaar worden
+  constructor(geos, slots) {
+    super();
+    this.total = slots.length;
+    this.shown = -1;
+    this.parts = [];
+    geos.forEach((geo, v) => {
+      const idx = [];
+      slots.forEach((sl, k) => { if (sl.v === v) idx.push(k); });
+      if (!idx.length) return;
+      const m = new THREE.InstancedMesh(geo, MAT, idx.length);
+      idx.forEach((k, j) => {
+        const sl = slots[k];
+        _crateDummy.position.set(sl.x, sl.y, sl.z);
+        _crateDummy.rotation.set(0, sl.ry || 0, 0);
+        _crateDummy.updateMatrix();
+        m.setMatrixAt(j, _crateDummy.matrix);
+      });
+      m.castShadow = true;
+      m.computeBoundingSphere();
+      m.count = 0;
+      this.add(m);
+      this.parts.push({ m, idx });
+    });
+  }
+  get length() { return this.total; }
+  show(n) {
+    if (n === this.shown) return;
+    this.shown = n;
+    for (const p of this.parts) {
+      let c = 0;
+      while (c < p.idx.length && p.idx[c] < n) c++;
+      p.m.count = c;
+      p.m.visible = c > 0;
+    }
+  }
+}
+
+// Vrachtwagen met open laadbak; de kratten in de bak worden één voor één zichtbaar
+// terwijl de vrachtwagen geladen wordt (userData.cargo.show(n)).
 export function truck(color = C.red, seed = 1) {
   const g = new THREE.Group();
   const b = new Builder();
@@ -212,18 +317,17 @@ export function truck(color = C.red, seed = 1) {
   b.box(0.06, 0.15, 0.3, 0xff4d4d, -2.2, 0.6, -0.6);
   g.add(b.mesh());
   // 8 kratten: 2 rijen van 4 langs de laadbak
-  const cargo = [];
-  for (let k = 0; k < 8; k++) {
+  const geo = (col) => sharedGeometry(`truckCrate:${col}`, () => {
     const cb = new Builder();
-    cb.box(0.62, 0.55, 0.72, k % 3 ? C.wood : 0xd29a62, 0, 0, 0);
+    cb.box(0.62, 0.55, 0.72, col, 0, 0, 0);
     cb.ico(0.12, C.apple, -0.12, 0.56, 0.1);
     cb.ico(0.12, C.apple, 0.14, 0.57, -0.08);
-    const m = cb.mesh();
-    m.position.set(0.35 - Math.floor(k / 2) * 0.72, 0.78, k % 2 ? 0.4 : -0.4);
-    m.visible = false;
-    g.add(m);
-    cargo.push(m);
-  }
+    return cb;
+  });
+  const slots = [];
+  for (let k = 0; k < 8; k++) slots.push({ x: 0.35 - Math.floor(k / 2) * 0.72, y: 0.78, z: k % 2 ? 0.4 : -0.4, v: k % 3 ? 0 : 1 });
+  const cargo = new CrateSet([geo(C.wood), geo(0xd29a62)], slots);
+  g.add(cargo);
   g.userData.cargo = cargo;
   return g;
 }
@@ -234,17 +338,32 @@ function wheel(b, x, z, r, w = 0.22) {
   b.cyl(r * 0.5, w + 0.02, 0xc9ced6, x, r, z - w / 2 - 0.01, { seg: 8, rx: Math.PI / 2 });
 }
 
-// Losse krat met appels voor in de laadbak (userData.cargo).
+// Krat met appels voor in de laadbak: verzamelt plekken, cargoSet maakt er één CrateSet van.
 function cargoCrate(g, cargo, w, h, d, x, y, z, k) {
-  const cb = new Builder();
-  cb.box(w, h, d, k % 3 ? C.wood : 0xd29a62, 0, 0, 0);
-  cb.ico(Math.min(w, d) * 0.18, C.apple, -w * 0.18, h, d * 0.12);
-  cb.ico(Math.min(w, d) * 0.18, C.apple, w * 0.2, h + 0.01, -d * 0.1);
-  const m = cb.mesh();
-  m.position.set(x, y, z);
-  m.visible = false;
-  g.add(m);
-  cargo.push(m);
+  cargo.push({ x, y, z, v: k % 3 ? 0 : 1, w, h, d });
+}
+
+function cargoSet(g, cargo) {
+  const geos = [C.wood, 0xd29a62].map((col) => {
+    // elke maat heeft zijn eigen geometrie; binnen één voertuig zijn ze meestal gelijk
+    const sizes = [...new Set(cargo.map((c) => `${c.w}:${c.h}:${c.d}`))];
+    return sizes.map((key) => sharedGeometry(`cargo:${key}:${col}`, () => {
+      const [w, h, d] = key.split(':').map(Number);
+      const cb = new Builder();
+      cb.box(w, h, d, col, 0, 0, 0);
+      cb.ico(Math.min(w, d) * 0.18, C.apple, -w * 0.18, h, d * 0.12);
+      cb.ico(Math.min(w, d) * 0.18, C.apple, w * 0.2, h + 0.01, -d * 0.1);
+      return cb;
+    }));
+  });
+  // variant = kleur x maat
+  const sizes = [...new Set(cargo.map((c) => `${c.w}:${c.h}:${c.d}`))];
+  const flat = [];
+  const slots = cargo.map((c) => ({ ...c, v: c.v * sizes.length + sizes.indexOf(`${c.w}:${c.h}:${c.d}`) }));
+  geos.forEach((list) => flat.push(...list));
+  const set = new CrateSet(flat, slots);
+  g.add(set);
+  return set;
 }
 
 // Bezorgscooter met een rek achterop en een mandje voorop; de bestuurder rijdt mee.
@@ -277,7 +396,7 @@ function scooter(color) {
   cargoCrate(g, cargo, 0.48, 0.42, 0.46, -0.72, 0.83, 0, 0);
   cargoCrate(g, cargo, 0.32, 0.3, 0.34, 0.72, 0.84, 0, 1);
   cargoCrate(g, cargo, 0.44, 0.38, 0.42, -0.72, 1.25, 0, 2);
-  g.userData.cargo = cargo;
+  g.userData.cargo = cargoSet(g, cargo);
   // iets groter dan echt, anders valt hij weg naast de laaddeur
   g.scale.setScalar(1.3);
   g.userData.len = 1.7 * 1.3;
@@ -310,7 +429,7 @@ function pickup(color) {
   g.add(b.mesh());
   const cargo = [];
   for (let k = 0; k < 4; k++) cargoCrate(g, cargo, 0.55, 0.45, 0.58, -0.62 - Math.floor(k / 2) * 0.62, 0.65, k % 2 ? 0.32 : -0.32, k);
-  g.userData.cargo = cargo;
+  g.userData.cargo = cargoSet(g, cargo);
   g.userData.len = 3.1;
   return g;
 }
@@ -343,7 +462,7 @@ function van(color) {
   g.add(b.mesh());
   const cargo = [];
   for (let k = 0; k < 6; k++) cargoCrate(g, cargo, 0.66, 0.48, 0.64, 0.4 - Math.floor(k / 2) * 0.8, 2.18, k % 2 ? 0.36 : -0.36, k);
-  g.userData.cargo = cargo;
+  g.userData.cargo = cargoSet(g, cargo);
   g.userData.len = 3.7;
   return g;
 }
@@ -378,7 +497,7 @@ function semi(color) {
   g.add(b.mesh());
   const cargo = [];
   for (let k = 0; k < 12; k++) cargoCrate(g, cargo, 0.66, 0.6, 0.8, 0.95 - Math.floor(k / 2) * 0.74, 1.12, k % 2 ? 0.45 : -0.45, k);
-  g.userData.cargo = cargo;
+  g.userData.cargo = cargoSet(g, cargo);
   g.userData.len = 6.5;
   return g;
 }
@@ -625,6 +744,15 @@ export function crateStack(seed = 1, n = 4) {
 
 // Doos voor in de stelling: vult een vak zodat je goed ziet hoe vol het magazijn is.
 export function shelfCrate(seed = 0) {
+  return shelfCrateBuilder(seed).mesh();
+}
+
+// Geometrie van een stellingkrat (3 kleuren), gedeeld door alle stellingen.
+export function shelfCrateGeometry(seed = 0) {
+  return sharedGeometry(`shelf:${seed % 3}`, () => shelfCrateBuilder(seed));
+}
+
+function shelfCrateBuilder(seed) {
   const b = new Builder();
   const col = [0xe0ac6a, 0xd29a5a, 0xe8bb7a][seed % 3];
   b.box(0.92, 0.6, 0.78, col, 0, 0, 0);
@@ -632,7 +760,7 @@ export function shelfCrate(seed = 0) {
   b.ico(0.13, C.apple, -0.2, 0.62, 0.08);
   b.ico(0.13, C.apple, 0.12, 0.63, -0.1);
   b.ico(0.12, 0x8ccf3f, 0.25, 0.62, 0.15);
-  return b.mesh();
+  return b;
 }
 
 export function pallet(color = C.wood) {
@@ -755,6 +883,8 @@ export function machine(id, color) {
       s.position.set(s.userData.x + p * 0.3, s.userData.y + p * 1.6, s.userData.z);
       const sc = act > 0.01 ? (0.4 + p) * (1 - p) * 2 : 0;
       s.scale.setScalar(sc);
+      // onzichtbaar klein: niet tekenen
+      s.visible = sc > 0.001;
     }
   };
 
@@ -772,6 +902,7 @@ export function machine(id, color) {
       for (const m of list) {
         const p = (t * (0.6 + act * 1.5) + m.userData.phase) % 1;
         m.scale.setScalar(act > 0.01 ? Math.sin(p * Math.PI) * 1.1 : 0.0001);
+        m.visible = act > 0.01;
       }
     });
   };
@@ -1107,6 +1238,7 @@ export function machine(id, color) {
           const q = (t * (0.5 + act) + m.userData.phase) % 1;
           m.position.y = 0.7 + q * 1.4;
           m.scale.setScalar(act > 0.01 ? 1 : 0.0001);
+          m.visible = act > 0.01;
         });
         nozzle.position.y = 1.25 - stroke(k, 0.55, 0.9) * 0.4;
         animSteam(t, act * 0.6);
@@ -1151,6 +1283,7 @@ export function machine(id, color) {
         const q = act > 0.01 ? (p * 2) % 1 : 0;
         drop.position.y = 1.2 - q * q * 0.9;
         drop.scale.setScalar(act > 0.01 ? 0.6 + q * 0.4 : 0.0001);
+        drop.visible = act > 0.01;
         animSteam(t, act);
       });
       break;

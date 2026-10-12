@@ -302,11 +302,15 @@ function frame(t) {
 
   world.update(dt);
   ui.update(t);
+  world.perfSample(raw);
 }
 
 requestAnimationFrame((t) => {
   lastFrame = t;
-  document.getElementById('loading').classList.add('gone');
+  const loading = document.getElementById('loading');
+  loading.classList.add('gone');
+  // na het vervagen helemaal weg: anders blijft er een onzichtbare laag boven het spel meedraaien
+  setTimeout(() => loading.remove(), 1000);
   frame(t);
 });
 
