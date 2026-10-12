@@ -594,20 +594,19 @@ export class UI {
 
   // Grote melding bij een nieuwe ster.
   starBanner(name, text, n, kind) {
-    const old = document.querySelector('.star-banner');
-    if (old) old.remove();
-    const b = document.createElement('div');
-    b.className = 'star-banner';
+    document.querySelectorAll('.star-toast').forEach((x) => x.remove());
     let hint = '';
     if (kind === 'line') {
       const p = E.computeProduction(this.state, 0, true);
-      if (p.lines.some((l) => l.status === 'apples')) hint = 'Je boomgaard moet mee!';
-      else if (p.potential > p.transport * 1.001) hint = 'Je vrachtwagens moeten mee!';
+      if (p.lines.some((l) => l.status === 'apples')) hint = 'Boomgaard moet mee!';
+      else if (p.potential > p.transport * 1.001) hint = 'Vrachtwagens moeten mee!';
     }
-    b.innerHTML = `<div class="sbn-star">${icon('star')}<span>${n}</span></div><div class="sbn-text"><b>${text}!</b><small>${name}</small>${hint ? `<em>${hint}</em>` : ''}</div>`;
-    document.body.appendChild(b);
-    setTimeout(() => b.classList.add('out'), 2300);
-    setTimeout(() => b.remove(), 2800);
+    const b = document.createElement('div');
+    b.className = 'toast star-toast';
+    b.innerHTML = `<span class="stt-star">${icon('star')}<i>${n}</i></span><span class="stt-text"><b>${text}</b> <span>${name}</span>${hint ? `<em>${hint}</em>` : ''}</span>`;
+    this.el.toasts.prepend(b);
+    setTimeout(() => b.classList.add('out'), 2600);
+    setTimeout(() => b.remove(), 3000);
   }
 
   floatAtStation(st, text) {

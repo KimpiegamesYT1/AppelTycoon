@@ -715,27 +715,16 @@ body:has(#tutorial:not(.hidden)) #toasts { top: calc(var(--tut-bottom, 190px) + 
 .card.upg .btn { min-width: 92px; padding: 10px 10px; font-size: 15px; }
 .gain { color: var(--green-d); font-weight: 700; }
 
-/* grote melding bij een nieuwe ster */
-.star-banner {
-  position: fixed; left: 50%; top: calc(26% + var(--safe-t));
-  transform: translateX(-50%);
-  display: flex; align-items: center; gap: 12px;
-  background: linear-gradient(180deg, #fffaf0, #fff1d0);
-  border: 3px solid var(--gold); border-radius: 20px;
-  padding: 10px 18px 10px 12px;
-  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.15), 0 10px 30px rgba(0, 0, 0, 0.2);
-  z-index: 25; pointer-events: none;
-  animation: bannerIn 0.45s cubic-bezier(0.2, 1.6, 0.4, 1);
-  max-width: calc(100% - 24px);
-}
-.star-banner.out { opacity: 0; transform: translate(-50%, -16px); transition: opacity 0.4s, transform 0.4s; }
-.sbn-star { position: relative; font-size: 48px; color: var(--gold); display: grid; place-items: center; filter: drop-shadow(0 3px 0 var(--gold-d)); animation: starSpin 0.8s ease-out; }
-.sbn-star span { position: absolute; font-size: 17px; font-weight: 700; color: #6b4300; top: 52%; transform: translateY(-50%); }
-.sbn-text { display: flex; flex-direction: column; line-height: 1.15; }
-.sbn-text b { font-size: 22px; }
-.sbn-text small { font-size: 14px; color: var(--ink-soft); }
-.sbn-text em { font-style: normal; font-size: 14px; color: var(--orange-d); font-weight: 700; margin-top: 2px; }
-@keyframes bannerIn { from { opacity: 0; transform: translate(-50%, -20px) scale(0.6); } }
+/* melding bij een nieuwe ster: strak bovenin, tussen de andere meldingen */
+.toast.star-toast { background: linear-gradient(180deg, #3a3220, #2b2618); border: 2px solid var(--gold); padding: 6px 14px 6px 8px; animation: starToastIn 0.4s cubic-bezier(0.2, 1.5, 0.4, 1); }
+.stt-star { position: relative; display: grid; place-items: center; font-size: 30px; color: var(--gold); flex-shrink: 0; animation: starSpin 0.7s ease-out; }
+.toast .stt-star .ic { font-size: 30px; color: var(--gold); }
+.stt-star i { position: absolute; font-style: normal; font-size: 11px; font-weight: 700; color: #5a3a00; top: 54%; transform: translateY(-50%); }
+.stt-text { line-height: 1.2; }
+.stt-text b { color: #ffe27a; }
+.stt-text span { color: #e9e2cf; }
+.stt-text em { display: block; font-style: normal; font-size: 13px; font-weight: 700; color: #ffb35c; }
+@keyframes starToastIn { from { opacity: 0; transform: translateY(-14px) scale(0.85); } }
 @keyframes starSpin { from { transform: rotate(-200deg) scale(0.3); } }
 
 .buy.pop { animation: buyPop 0.18s ease-out; }
