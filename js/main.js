@@ -203,6 +203,21 @@ const game = {
     world.setQuality(q);
   },
 
+  // Haalt de nieuwste versie op, ook in een web-app op je beginscherm waar je niet kunt verversen:
+  // eerst opslaan, dan caches leegmaken en de pagina opnieuw laden met een unieke URL.
+  async hardRefresh() {
+    this.save();
+    try { if (window.caches) for (const k of await caches.keys()) await caches.delete(k); } catch (e) { /* geen cache-opslag */ }
+    try {
+      if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+    } catch (e) { /* geen service worker */ }
+    // de HTTP-cache van de startpagina verversen, zodat ook een volgende start de nieuwe versie krijgt
+    await Promise.all(['./', 'index.html', 'manifest.webmanifest'].map((u) => fetch(u, { cache: 'reload' }).catch(() => null)));
+    const url = new URL(location.href);
+    url.searchParams.set('r', Date.now().toString(36));
+    location.replace(url.href);
+  },
+
   hardReset() {
     localStorage.removeItem(SAVE_KEY);
     window.removeEventListener('pagehide', onHide);
@@ -316,6 +331,22 @@ requestAnimationFrame((t) => {
 });
 
 setInterval(() => game.save(), 5000);
+
+// na "Update laden" de extra parameter weer uit de adresbalk halen
+if (new URLSearchParams(location.search).has('r')) {
+  const url = new URL(location.href);
+  url.searchParams.delete('r');
+  history.replaceState(null, '', url.href);
+}
+// af en toe kijken of er een nieuwe versie online staat (bij het starten en als je terugkomt in de app)
+let lastUpdateCheck = 0;
+function maybeCheckUpdate() {
+  if (Date.now() - lastUpdateCheck < 120000) return;
+  lastUpdateCheck = Date.now();
+  ui.checkUpdate();
+}
+setTimeout(maybeCheckUpdate, 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) maybeCheckUpdate(); });
 function onHide() { game.save(); }
 window.addEventListener('pagehide', onHide);
 document.addEventListener('visibilitychange', () => { if (document.hidden) game.save(); });

@@ -754,3 +754,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 .buy.pop { animation: buyPop 0.18s ease-out; }
 @keyframes buyPop { 50% { transform: scale(1.04); } }
+
+/* nieuwe versie online: rood stipje op het tandwiel en een opvallende rij in de instellingen */
+#btn-settings { position: relative; }
+#btn-settings.has-update::after { content: ''; position: absolute; top: 6px; right: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px #fff; }
+.list-row.update-ready { border-color: var(--green); background: #eaffdf; }
