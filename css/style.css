@@ -659,8 +659,16 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 /* ---------- Stationkaart (Eatventure-stijl) ---------- */
 
-.lv-head { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 2px 0 4px; }
+.lv-head { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 4px 0 2px; }
 .stars { display: flex; gap: 3px; align-items: center; font-size: 26px; }
+.sheet-badge .stars { font-size: 21px; gap: 2px; }
+.sheet-badge .st-count { font-size: 12px; padding: 1px 5px; margin-left: 2px; }
+@media (max-width: 480px) { .sheet-badge .stars { font-size: 16px; gap: 1px; } }
+.sheet-badge { flex-shrink: 0; }
+.sheet-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub-stars { color: var(--ink); font-weight: 700; }
+.sub-stars .ic { color: var(--gold); margin-right: 1px; }
+.sheet-title h2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stars .st { color: #e3dccd; display: inline-flex; }
 .stars .st.on { color: var(--gold); filter: drop-shadow(0 2px 0 var(--gold-d)); }
 .stars.row-1 .st.on { color: #ff8a3d; filter: drop-shadow(0 2px 0 #c95a12); }

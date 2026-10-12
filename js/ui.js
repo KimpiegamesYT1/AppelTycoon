@@ -215,13 +215,13 @@ export class UI {
   }
 
   // vijf sterren per rij; na vijf begint een nieuwe rij in een andere kleur
-  starRow(kind, level) {
+  starRow(kind, level, count = true) {
     const n = this.marks(kind).filter((x) => level >= x).length;
     const row = Math.floor(n / 5);
     const inRow = n - row * 5;
     let html = '';
     for (let k = 0; k < 5; k++) html += `<span class="st ${k < inRow ? 'on' : ''}">${icon('star')}</span>`;
-    return `<div class="stars row-${Math.min(row, 3)}">${html}${row > 0 ? `<span class="st-count">${n}</span>` : ''}</div>`;
+    return `<div class="stars row-${Math.min(row, 3)}">${html}${row > 0 && count ? `<span class="st-count">${n}</span>` : ''}</div>`;
   }
 
   starBar(kind, level) {
@@ -294,11 +294,14 @@ export class UI {
           else if (spNext > sp && nl.status === 'full') extra = warn('Na deze ster is de machine twee keer zo snel: upgrade ook de vrachtwagens.', goTo('sales', 'Vrachtwagens'));
         }
         const html = `
-          <div class="lv-head">${this.starRow(st.kind, level)}${this.starBar(st.kind, level)}</div>
+          <div class="lv-head">${this.starBar(st.kind, level)}</div>
           <div class="chips n${chips.length}">${chips.join('')}</div>
           ${extra}
           <div class="buy-row">${this.amountToggle()}${this.buyButton(st.kind, st.i || 0)}</div>`;
-        return { title, sub: `Level <b>${level}</b>`, html };
+        // sterren rechts in de kop, naast het kruisje
+        const nStars = this.marks(st.kind).filter((x) => level >= x).length;
+        const sub = `Level <b>${level}</b>${nStars >= 5 ? ` · <span class="sub-stars">${icon('star')}${nStars}</span>` : ''}`;
+        return { title, sub, html, badge: this.starRow(st.kind, level, false) };
       },
     };
   }
