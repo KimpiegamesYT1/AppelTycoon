@@ -889,7 +889,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 /* Machinekaart (mobiel): laag in beeld, over de knoppen onderin, en wat compacter */
 @media (max-width: 979px) {
-  .sheet.sheet-station { bottom: calc(8px + var(--safe-b)); z-index: 13; }
+  .sheet.sheet-station { bottom: calc(22px + var(--safe-b)); z-index: 13; }
   .sheet-station .sheet-head { padding: 9px 10px 6px 12px; gap: 8px; }
   .sheet-station .sheet-icon { width: 40px; height: 40px; font-size: 24px; border-radius: 12px; }
   .sheet-station .sheet-title h2 { font-size: 19px; }
