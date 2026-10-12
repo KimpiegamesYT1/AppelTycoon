@@ -1158,24 +1158,59 @@ export class UI {
     for (const it of items) {
       it.p = prio(it);
       if (it.p < 0) continue;
-      it.el.classList.remove('compact');
+      it.el.classList.remove('compact', 'slim');
     }
     for (const it of items) if (it.p >= 0) { it.w = it.el.offsetWidth; it.h = it.el.offsetHeight; }
+    // machinebordjes ook in de smalle vorm meten
+    const lineItems = items.filter((it) => it.p >= 0 && it.st.kind === 'line');
+    for (const it of lineItems) it.el.classList.add('slim');
+    for (const it of lineItems) { it.sw = it.el.offsetWidth; it.sh = it.el.offsetHeight; }
     const placed = [];
     const hits = (r) => placed.some((q) => r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0);
     const rect = (it, w, h, pad = 2) => ({ x0: it.x - w / 2 - pad, x1: it.x + w / 2 + pad, y0: it.y - h - pad, y1: it.y + pad });
     // een rondje mag een klein beetje over een ander heen vallen (het pijltje steekt eruit)
     const small = 24;
-    items.filter((it) => it.p >= 0).sort((a, b) => b.p - a.p || a.y - b.y).forEach((it) => {
+    const live = items.filter((it) => it.p >= 0);
+    // De machinebordjes doen alles samen: allemaal volledig, of allemaal een rondje. Om en om groot
+    // en klein ziet er rommelig uit. Een kleine marge voorkomt heen en weer springen tijdens het zoomen.
+    const lines = live.filter((it) => it.st.kind === 'line' && it.p < 70);
+    const others = live.filter((it) => !(it.st.kind === 'line' && it.p < 70));
+    // drie standen voor alle machinebordjes samen: 0 = volledig, 1 = smal, 2 = rondje
+    const prev = this.linesMode || 0;
+    const fits = (mode) => {
+      const margin = mode < prev ? 6 : 0;
+      const size = (it) => (lines.includes(it) ? (mode === 1 ? [it.sw, it.sh] : [it.w, it.h]) : [it.w, it.h]);
+      const overlap = (a, b) => {
+        const [aw, ah] = size(a), [bw, bh] = size(b);
+        const ra = rect(a, aw, ah, margin / 2), rb = rect(b, bw, bh, margin / 2);
+        return Math.min(ra.x1, rb.x1) - Math.max(ra.x0, rb.x0) > 2 && Math.min(ra.y1, rb.y1) - Math.max(ra.y0, rb.y0) > 2;
+      };
+      for (let i = 0; i < lines.length; i++) {
+        for (let j = i + 1; j < lines.length; j++) if (overlap(lines[i], lines[j])) return false;
+        // ook als een machinebord een belangrijker bord (boomgaard, vervoer, kantoor, uitbreiding) zou raken
+        for (const o of others) if (o.p >= 55 && overlap(lines[i], o)) return false;
+      }
+      return true;
+    };
+    const mode = compactZoom ? 2 : fits(0) ? 0 : fits(1) ? 1 : 2;
+    this.linesMode = mode;
+    const crowded = mode === 2;
+    // eerst de belangrijke bordjes, dan de machines (van boven naar beneden)
+    const order = [...others.filter((it) => it.p >= 55), ...lines, ...others.filter((it) => it.p < 55)];
+    order.sort((a, b) => (b.p >= 55) - (a.p >= 55) || b.p - a.p || a.y - b.y);
+    for (const it of order) {
+      const isLine = lines.includes(it);
       const canShrink = it.p < 70;
-      let compact = compactZoom && canShrink;
-      let r = compact ? rect(it, small, small, 0) : rect(it, it.w, it.h);
-      if (hits(r) && canShrink && !compact) { compact = true; r = rect(it, small, small, 0); }
+      let compact = canShrink && (isLine ? crowded : compactZoom);
+      const slim = isLine && mode === 1;
+      let r = compact ? rect(it, small, small, 0) : slim ? rect(it, it.sw, it.sh) : rect(it, it.w, it.h);
+      if (!isLine && hits(r) && canShrink && !compact) { compact = true; r = rect(it, small, small, 0); }
       const hide = hits(r) && it.p < 70;
       it.el.classList.toggle('compact', compact);
+      it.el.classList.toggle('slim', slim);
       it.el.classList.toggle('crowded', hide);
       if (!hide) placed.push(r);
-    });
+    }
   }
 
   updateLabelContent() {
