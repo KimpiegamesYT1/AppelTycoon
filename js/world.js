@@ -1205,10 +1205,30 @@ export class World {
     this.camera.position.copy(this.target).addScaledVector(CAM_DIR, 150);
     this.camera.lookAt(this.target);
     this.camera.updateMatrixWorld();
-    const s = Math.max(hw, hh) * 1.15;
-    const sc = this.sun.shadow.camera;
-    if (sc.right !== s) {
-      sc.left = -s; sc.right = s; sc.top = s; sc.bottom = -s; sc.near = 1; sc.far = 220;
+    // Schaduwgebied: precies wat de camera ziet. De hoeken van het scherm, geprojecteerd op de grond
+    // en op objecthoogte, bekeken vanuit de zon. Een vast vierkant miste op een staand (mobiel) scherm
+    // de boven- en onderkant: daar verdwenen de schaduwen op een vaste lijn.
+    const key = `${hw.toFixed(2)}|${hh.toFixed(2)}`;
+    if (key !== this.shadowKey) {
+      this.shadowKey = key;
+      const sc = this.sun.shadow.camera;
+      const light = new THREE.Matrix4().lookAt(SUN_OFFSET, new THREE.Vector3(), new THREE.Vector3(0, 1, 0));
+      light.setPosition(SUN_OFFSET);
+      const toLight = light.invert();
+      const right = SCREEN_RIGHT, up = new THREE.Vector3().crossVectors(CAM_DIR, SCREEN_RIGHT);
+      const p = new THREE.Vector3();
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const h of [0, 7]) {
+        // punt op het scherm (relatief aan het doel), langs de kijkrichting naar hoogte h
+        p.copy(right).multiplyScalar(sx * hw).addScaledVector(up, sy * hh);
+        p.addScaledVector(CAM_DIR, (h - p.y) / CAM_DIR.y);
+        p.applyMatrix4(toLight);
+        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+      }
+      const m = 3;
+      sc.left = minX - m; sc.right = maxX + m; sc.bottom = minY - m; sc.top = maxY + m;
+      sc.near = 1; sc.far = 260;
       sc.updateProjectionMatrix();
     }
     this.sun.position.copy(this.target).add(SUN_OFFSET);
