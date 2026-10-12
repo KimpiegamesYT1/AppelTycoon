@@ -80,6 +80,9 @@ export function goalProgress(g, state, income) {
   }
 }
 
+// Beloning in seconden inkomen, naar hoe zwaar de taak is: een klein extraatje, geen jackpot.
+const REWARD_SECONDS = { stat: 4, research: 6, level: 8, unlock: 10, income: 10, tier: 12, prestige: 0 };
+
 export function goalReward(g, income) {
-  return Math.max(g.min, income * 30);
+  return Math.max(g.min, income * (REWARD_SECONDS[g.type] ?? 8));
 }

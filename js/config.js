@@ -109,7 +109,7 @@ export const INVESTOR_POWER = 0.33;
 
 
 // Gouden appel: verschijnt af en toe in de boomgaard.
-export const GOLDEN = { minDelay: 45, maxDelay: 110, lifetime: 20, incomeSeconds: 45, minReward: 20 };
+export const GOLDEN = { minDelay: 45, maxDelay: 110, lifetime: 20, incomeSeconds: 20, minReward: 20 };
 
 // Offline-inkomen.
 export const OFFLINE = { maxHours: 4, rate: 0.5 };

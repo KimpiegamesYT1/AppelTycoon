@@ -657,7 +657,7 @@ export class UI {
       this.el.income.textContent = `≈ ${money(E.incomePerSecond(s) * 60)}/min`;
       this.el.inv.textContent = fmt(s.investors);
       this.updateTutorial();
-      if (tutorialDone(s)) this.updateGoal(prod.income);
+      if (tutorialDone(s)) this.updateGoal(E.incomePerSecond(s));
       this.updateBadges();
       this.updateVisibility();
       this.updateChainMini();
