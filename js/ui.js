@@ -908,10 +908,13 @@ export class UI {
       if (a.st.kind === 'golden') {
         const m = 44;
         const out = p.x < m || p.x > window.innerWidth - m || p.y < 130 || p.y > window.innerHeight - 100;
+        const ax = p.x, ay = p.y;
         p.x = Math.min(window.innerWidth - m, Math.max(m, p.x));
         p.y = Math.min(window.innerHeight - 100, Math.max(130, p.y));
         p.visible = out;
         el.classList.toggle('edge', out);
+        // pijltje wijst naar waar de gouden appel echt zit (het label zelf staat aan de rand)
+        if (out) el.style.setProperty('--a', `${Math.atan2(ay - (p.y - 21), ax - p.x).toFixed(2)}rad`);
       }
       const hide = !p.visible || (zoomedOut && a.st.kind === 'line');
       // alleen de DOM aanraken als er echt iets verandert (scheelt veel werk als de camera stilstaat)
@@ -963,7 +966,7 @@ export class UI {
     } else if (st.kind === 'dock') {
       html = `<span class="lb-icon">${glyph('sales')}</span><span>Nieuwe laadplek<br><b>level ${st.level}</b></span>`;
     } else if (st.kind === 'golden') {
-      html = `<span class="lb-icon">${glyph('gold')}</span>`;
+      html = `<i class="gold-arrow"></i><span class="lb-icon">${glyph('gold')}</span>`;
     }
     if (el._html !== html) { el.innerHTML = html; el._html = html; }
     el.classList.toggle('can', can);

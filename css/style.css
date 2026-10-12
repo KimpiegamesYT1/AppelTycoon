@@ -501,9 +501,15 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .label-unlock, .label-tier { padding: 4px 10px 4px 6px; font-size: 12px; line-height: 1.15; background: rgba(255, 243, 224, 0.97); }
 .label-unlock b, .label-tier b { font-size: 14px; color: var(--orange-d); }
 .label-unlock.can, .label-tier.can { border-color: var(--orange); animation: labelBob 1s ease-in-out infinite; }
-.label-golden { width: 38px; height: 38px; padding: 0; border-radius: 50%; justify-content: center; background: var(--gold); box-shadow: 0 0 0 3px rgba(255, 201, 40, 0.4), 0 3px 0 rgba(0, 0, 0, 0.18); z-index: 3; animation: labelBob 0.8s ease-in-out infinite; }
+.label-golden { width: 42px; height: 42px; padding: 0; border-radius: 50%; justify-content: center; background: #fffbea; border: 3px solid var(--gold); box-shadow: 0 0 0 4px rgba(255, 201, 40, 0.35), 0 3px 0 rgba(0, 0, 0, 0.18); z-index: 3; animation: labelBob 0.8s ease-in-out infinite; }
 .label-golden::after { display: none; }
-.label-golden .lb-icon { font-size: 22px; }
+.label-golden .lb-icon { font-size: 26px; display: flex; }
+.label-golden .lb-icon .gl { width: 26px; height: 26px; }
+/* pijltje naar de gouden appel als die buiten beeld of achter de balk zit */
+.label-golden .gold-arrow { display: none; position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none;
+  transform: rotate(var(--a, 0rad)) translateX(29px); }
+.label-golden .gold-arrow::before { content: ''; position: absolute; left: 0; top: -7px; border-left: 11px solid #e8a400; border-top: 7px solid transparent; border-bottom: 7px solid transparent; }
+.label-golden.edge .gold-arrow { display: block; }
 /* labels worden met transform op hun plek gezet; daarom stuiteren via de losse translate-eigenschap */
 @keyframes labelBob { 50% { translate: 0 -4px; } }
 

@@ -30,7 +30,10 @@ const GLYPH = {
   orchard: '<rect x="10.5" y="13" width="3" height="8" rx="1" fill="#8a5a33"/><circle cx="12" cy="9" r="7" fill="#5dbb4c"/><circle cx="9" cy="8" r="1.4" fill="#e53935"/><circle cx="14.5" cy="11" r="1.4" fill="#e53935"/><circle cx="13" cy="5.8" r="1.4" fill="#e53935"/>',
   sales: '<rect x="2" y="6" width="12" height="10" rx="1.5" fill="#f4f1ea" stroke="#c9c2b5"/><path d="M14 9h4l3 3.5V16h-7z" fill="#d9473b"/><circle cx="6" cy="17.5" r="2" fill="#2b2f3a"/><circle cx="17" cy="17.5" r="2" fill="#2b2f3a"/><circle cx="8" cy="11" r="2.2" fill="#e53935"/>',
   fresh: APPLE('#e53935'),
-  gold: APPLE('#ffc928'),
+  // gouden appel met donkere rand en glans, zodat hij ook op een lichte of gele ondergrond opvalt
+  gold: '<path d="M12 7c-2-1.5-7-1.5-7.5 4S8 21 10 21c1 0 1.3-.5 2-.5s1 .5 2 .5c2 0 6-5 5.5-10S14 5.5 12 7z" fill="#ffc928" stroke="#b77900" stroke-width="1.3" stroke-linejoin="round"/>'
+    + '<path d="M7.3 10.5c.3-1.6 1.3-2.4 2.4-2.6" stroke="#fff6cf" stroke-width="1.5" fill="none" stroke-linecap="round"/>'
+    + '<path d="M12 7c0-2 .5-3.5 2-4.5" stroke="#7a4b2a" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M13 4.5c1.5-1.5 4-1.5 5-.5-1.2 1.5-3.6 1.8-5 .5z" fill="#5dbb4c"/>',
   juice: '<path d="M7 7h10v14H7z" fill="#f7d046"/><path d="M7 7l2-3h6l2 3z" fill="#e5b92e"/><rect x="7" y="12" width="10" height="4" fill="#5dbb4c"/><path d="M14 4V1.5h2.5" stroke="#d9473b" stroke-width="1.5" fill="none"/>',
   sauce: '<rect x="6" y="8" width="12" height="13" rx="2.5" fill="#f6e7b0" stroke="#e2cf8f"/><rect x="5.5" y="4.5" width="13" height="4" rx="1" fill="#d9473b"/><circle cx="12" cy="14.5" r="2.5" fill="#e53935"/>',
   chips: '<path d="M6 5h12l-1 16H7z" fill="#e8a33d"/><path d="M5.5 3h13v3h-13z" fill="#d9473b"/><ellipse cx="12" cy="13" rx="3" ry="2.2" fill="#fbe3b0"/>',
