@@ -1832,25 +1832,93 @@ export class World {
     // voertuigen
     // vrachtwagens: laden aan de deur, rijden weg (verkocht) en komen leeg terug
     const L = TRUCK.loadTime;
+    // Verkeer: op elke rijbaan houdt een vrachtwagen afstand tot die voor hem. Wie achterop raakt,
+    // rijdt daarna wat harder (tot 20/s) om weer gelijk te lopen met de economie.
+    const gapOf = (a, b) => (a.userData.len + b.userData.len) / 2 + 1.2;
+    const incoming = [];
     this.trucks.forEach((tr, k) => {
       const st = this.state && this.state.trucks && this.state.trucks[k];
       if (!st) return;
       const loading = st.t < L;
       // net vertrokken: deze rijdt weg, de volgende komt eraan
-      if (tr.loading && !loading) this.truckLeave(tr, k, st.last);
+      if (tr.loading && !loading) { this.truckLeave(tr, k, st.last); tr.vd = 0; }
       tr.loading = loading;
       const mover = tr.movers[tr.cur];
       // PathMover-routes zijn rondjes; het einde van de aankomst is het laatste punt (de laaddeur)
       const end = mover.starts[mover.points.length - 1];
-      // tijdens het laden staat hij aan de deur
-      const d = loading ? end : ((st.t - L) / (TRUCK.cycle - L)) * end;
-      mover.setDistance(Math.min(end - 1e-3, d), dt);
+      const want = loading ? end : Math.min(end, ((st.t - L) / (TRUCK.cycle - L)) * end);
+      if (tr.vd === undefined || want < tr.vd - 1) tr.vd = want;
+      else tr.vd = Math.min(want, tr.vd + 20 * dt);
       const full = loading ? (this.truckCap > 0 ? st.load / this.truckCap : 0) : 0;
       const cargo = tr.obj.userData.cargo;
       cargo.show(Math.round(full * cargo.length));
-      // wegrijders: doorrijden tot uit beeld, dan verbergen
+      // nog op de weg (eerste stuk van de aankomst): meedoen in de rij
+      if (tr.vd < mover.starts[1]) incoming.push({ tr, mover, z: mover.points[0].z - tr.vd });
+    });
+    // aankomende rijbaan (richting -z): de voorste heeft de kleinste z
+    incoming.sort((a, b) => a.z - b.z);
+    let prev = null;
+    for (const it of incoming) {
+      if (prev) {
+        const minZ = prev.z + gapOf(prev.tr.obj, it.tr.obj);
+        if (it.z < minZ) { it.z = minZ; it.tr.vd = Math.max(0, it.mover.points[0].z - minZ); }
+      }
+      prev = it;
+    }
+    // oversteken naar de laaddeur: eerst wachten als er op de wegrijdbaan iemand aankomt
+    const laneA = ROAD_X - 0.5;
+    const crossing = [];
+    this.trucks.forEach((tr) => {
+      if (tr.vd === undefined) return;
+      const mover = tr.movers[tr.cur];
+      const s1 = mover.starts[1];
+      const zd = mover.points[1].z;
+      const crossAt = s1 + (mover.points[1].x - laneA);   // afstand waarop hij midden op de wegrijdbaan is
+      if (tr.vd > s1 - 0.5 && tr.vd < crossAt) {
+        let busy = false;
+        for (const t2 of this.trucks) for (const lv of t2.leavers) {
+          const p = lv.obj.position;
+          if (Math.abs(p.x - laneA) < 1 && p.z > zd - gapOf(lv.obj, tr.obj) * 2.5 && p.z < zd + gapOf(lv.obj, tr.obj)) busy = true;
+        }
+        if (busy && tr.vd < s1 + 0.6) tr.vd = Math.min(tr.vd, s1);
+      }
+      mover.setDistance(Math.min(mover.starts[mover.points.length - 1] - 1e-3, tr.vd), dt);
+      // net verschenen (ver weg) en nog geen ruimte: even onzichtbaar, zodat ze niet in elkaar staan
+      tr.obj.visible = tr.vd > 0.3 || tr.loading;
+      // wie aan het oversteken is (of net gaat), is een obstakel voor de wegrijders
+      if (tr.vd > s1 - 0.5 && tr.vd < crossAt + tr.obj.userData.len) crossing.push({ lv: { obj: tr.obj }, z: zd });
+    });
+    // wegrijders (richting +z): de voorste heeft de grootste z. Invoegen doe je vóór de weg: alleen
+    // doorrijden als er niemand aankomt; wie eenmaal rijdt, houdt afstand tot die voor hem.
+    const leavers = [];
+    this.trucks.forEach((tr) => tr.leavers.forEach((lv) => leavers.push(lv)));
+    const ramp = (lv) => lv.mover.points[1].z;
+    const holdAt = (lv) => lv.mover.starts[1] - (lv.obj.userData.len / 2 + 1.0);
+    const zOf = (lv, d = lv.d) => ramp(lv) + Math.max(0, d - lv.mover.starts[1]);
+    const going = (lv) => lv.d >= holdAt(lv) - 1e-6;
+    leavers.sort((a, b) => (going(b) ? zOf(b) : -1e9) - (going(a) ? zOf(a) : -1e9));
+    const placed = [...crossing];
+    for (const lv of leavers) {
+      let d = lv.d + 12 * dt;
+      if (!going(lv)) {
+        if (d >= holdAt(lv)) {
+          // vrij? niemand vlak bij de oprit en niemand die er net aankomt
+          const z0 = ramp(lv);
+          const busy = placed.some((q) => { const g = gapOf(q.lv.obj, lv.obj); return q.z > z0 - g * 2.5 && q.z < z0 + g; });
+          if (busy) d = holdAt(lv) - 1e-3;
+        }
+      } else {
+        const z = zOf(lv, d);
+        for (const q of placed) {
+          const g = gapOf(q.lv.obj, lv.obj);
+          if (q.z >= zOf(lv) - 0.01 && q.z < z + g) d = Math.min(d, lv.mover.starts[1] + (q.z - g - ramp(lv)));
+        }
+      }
+      lv.d = Math.max(lv.d, d);
+      if (going(lv)) placed.push({ lv, z: zOf(lv) });
+    }
+    this.trucks.forEach((tr) => {
       tr.leavers = tr.leavers.filter((lv) => {
-        lv.d += 12 * dt;
         if (lv.d >= lv.mover.starts[lv.mover.points.length - 1] - 0.01) { if (lv.obj !== tr.obj) lv.obj.visible = false; return false; }
         lv.mover.setDistance(lv.d, dt);
         return true;
