@@ -20,10 +20,11 @@ export const ORCHARD = {
 
 export const SALES = {
   name: 'Vervoer',
-  baseRate: 1.5,      // kratten per seconde per vrachtwagen op level 1
-  levelGrowth: 1.25,  // elk level +25% lading; op DOCK_LEVELS een extra vrachtwagen
-  baseCost: 30,
-  growth: 2.2,
+  baseRate: 1.5,      // kratten per seconde per voertuig op level 1
+  levelGrowth: 1.08,  // elk level +8% lading (kleine stappen: vervoer moet steeds een beetje mee); op DOCK_LEVELS een extra voertuig
+  baseCost: 80,
+  growth: 1.32,
+  tierBoost: false,   // uitbreidingen geven het vervoer geen gratis extra capaciteit (de boomgaard wel)
   storeSeconds: 30,   // het magazijn houdt 30 seconden transport vast
   storeMin: 20,
 };
@@ -33,7 +34,7 @@ export const SALES = {
 export const TRUCK = { loadTime: 3, cycle: 10 };
 
 // Op deze levels krijgt het magazijn een extra laadplek met een extra vrachtwagen.
-export const DOCK_LEVELS = [10, 20, 30, 40, 50];
+export const DOCK_LEVELS = [10, 25, 50, 75, 100];
 // Het vervoer groeit mee: op elk DOCK_LEVEL een extra voertuig, en tot level 40 ook een groter type.
 export const VEHICLES = [
   { id: 'scooter', name: 'Scooter', plural: 'scooters' },

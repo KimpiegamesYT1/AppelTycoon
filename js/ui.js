@@ -649,6 +649,16 @@ export class UI {
       <button class="btn green wide" data-action="modal-close">Starten!</button>`, true);
   }
 
+  // Eenmalige uitleg na de vervoer-update (versie 6): je level is omgerekend, je ronde loopt gewoon door.
+  transportNews(c) {
+    // staat er al een venster open (bv. offline-inkomen), dan alleen een korte melding
+    if (!this.el.modal.classList.contains('hidden')) { this.toast(`Vervoer vernieuwd: nu level ${c.to}, kleinere stappen`, 'up'); return; }
+    this.modal(`<div class="modal-icon">${glyph('sales')}</div><h2>Vervoer vernieuwd!</h2>
+      <p>Het vervoer groeit nu in <b>kleinere stappen</b>, dus je moet het vaker bijkopen als je fabriek groeit. Een <b>pijltje</b> laat zien wanneer dat nodig is.</p>
+      <p>Je vervoer is omgerekend naar <b>level ${c.to}</b>, met genoeg capaciteit voor je fabriek. Je ronde loopt gewoon door.</p>
+      <button class="btn green wide" data-action="modal-close">Verder spelen</button>`, true);
+  }
+
   newVersion(from) {
     const what = from === 2
       ? 'Elke upgrade maakt je producten nu meer waard. Bij een <b>ster</b> wordt een machine sneller of meer waard, en in het menu <b>Upgrades</b> vind je flinke bonussen.'
@@ -939,7 +949,8 @@ export class UI {
     let can = false;
     if (st.kind === 'orchard' || st.kind === 'sales' || st.kind === 'line') {
       const lv = E.stationLevel(s, st.kind, st.i);
-      can = E.upgradeQuote(s, st.kind, st.i || 0, 1).cost <= s.money;
+      // boomgaard en vervoer alleen een pijltje als ze (bijna) tekortschieten
+      can = E.upgradeQuote(s, st.kind, st.i || 0, 1).cost <= s.money && (!tutorialDone(s) || E.chainNeed(s, st.kind));
       const prod = this.game.prod;
       let warn = '';
       let bar = '';

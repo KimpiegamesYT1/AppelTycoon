@@ -4,7 +4,7 @@ import {
   UPGRADES, INVESTOR_BONUS, INVESTOR_BASE, INVESTOR_POWER, DOCK_LEVELS, PICKER_LEVELS, TRUCK, VEHICLES,
 } from './config.js';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 export function newState() {
   return {
@@ -110,7 +110,7 @@ export function lineRate(state, i, level = state.lines[i]) {
 
 // Hoeveel kratten per seconde de vrachtwagens wegbrengen.
 export function transportRate(state, level = state.sales) {
-  return SALES.baseRate * SALES.levelGrowth ** (level - 1) * truckCount(level) * tierOrchardMult(state) * upgradeMult(state, 'transport', 'speed');
+  return SALES.baseRate * SALES.levelGrowth ** (level - 1) * truckCount(level) * (SALES.tierBoost ? tierOrchardMult(state) : 1) * upgradeMult(state, 'transport', 'speed');
 }
 
 export function binCapacity(state, level = state.orchard) {
@@ -230,6 +230,16 @@ export function computeProduction(state, now = 0, steady = false) {
     potentialIncome: potentialValue * pm,
     income: value * pm,
   };
+}
+
+// Is een boomgaard- of vervoerupgrade nu (of bijna) nodig? Alleen dan krijgt hij een pijltje,
+// zodat je geen geld steekt in capaciteit die toch niet gebruikt wordt.
+export function chainNeed(state, kind) {
+  let pieces = 0, apples = 0;
+  LINES.forEach((l, i) => { const r = lineRate(state, i); pieces += r; apples += r * l.apples; });
+  if (kind === 'sales') return transportRate(state) < pieces * 1.15;
+  if (kind === 'orchard') return orchardRate(state) < apples * 1.15;
+  return true;
 }
 
 // Capaciteit van de drie schakels, alles in appels per seconde:

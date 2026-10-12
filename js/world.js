@@ -674,8 +674,8 @@ export class World {
     const lv = state.sales;
     return {
       docks: truckCount(lv),
-      decor: [15, 25, 35, 45, 60].filter((x) => lv >= x).length,
-      workers: Math.min(6, Math.floor(lv / 6)),
+      decor: [20, 40, 60, 80, 110].filter((x) => lv >= x).length,
+      workers: Math.min(6, Math.floor(lv / 12)),
     };
   }
 

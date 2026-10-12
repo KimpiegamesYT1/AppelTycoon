@@ -23,7 +23,7 @@ function migrate(d) {
     return base;
   }
   // versie 1 had een heel andere economie: begin opnieuw, maar houd de instellingen (muziek weer aan)
-  if (d.version !== E.SAVE_VERSION) {
+  if (d.version !== E.SAVE_VERSION && d.version !== 5) {
     base.settings = { ...base.settings, ...(d.settings || {}), music: true };
     base.migrated = true;
     return base;
@@ -37,7 +37,26 @@ function migrate(d) {
   for (const k of ['money', 'runEarned', 'totalEarned', 'investors', 'orchard', 'sales', 'tier', 'apples', 'goods', 'goodsValue', 'tutorial']) {
     if (!Number.isFinite(s[k])) s[k] = base[k];
   }
+  if (d.version === 5) convertTransport(s);
+  s.version = E.SAVE_VERSION;
   return s;
+}
+
+// Versie 5 -> 6: het vervoer groeit nu met kleine stappen (+8% per level) en krijgt geen gratis
+// bonus meer bij uitbreidingen. We rekenen je vervoerlevel om: je houdt de capaciteit die je
+// gebruikte (plus 30% ruimte); capaciteit die nergens voor nodig was vervalt.
+function convertTransport(s) {
+  const L = s.sales;
+  const oldTrucks = 1 + [10, 20, 30, 40, 50].filter((l) => L >= l).length;
+  const oldCap = 1.5 * 1.25 ** (L - 1) * oldTrucks * E.tierOrchardMult(s) * E.upgradeMult(s, 'transport', 'speed');
+  const need = LINES.reduce((t, l, i) => t + E.lineRate(s, i), 0);
+  const target = Math.min(oldCap, need * 1.3);
+  let lv = 1;
+  while (lv < 3000 && E.transportRate(s, lv) < target) lv++;
+  s.trucks = [];
+  s.goods = Math.min(s.goods, E.storeCapacity(s, lv));
+  if (lv !== L) s.transportConverted = { from: L, to: lv };
+  s.sales = lv;
 }
 
 function load() {
@@ -54,6 +73,8 @@ const loaded = load();
 const state = loaded || E.newState();
 const firstVisit = !loaded || state.migrated;
 const upgradedFrom = state.upgradedFrom;
+const transportConverted = state.transportConverted;
+delete state.transportConverted;
 delete state.migrated;
 delete state.upgradedFrom;
 // standaard Auto (de prestatieregelaar past de beeldkwaliteit aan het toestel aan);
@@ -271,6 +292,7 @@ state.lastTick = Date.now();
 if (!firstVisit && gap0 > 30) handleGap(gap0);
 if (firstVisit) ui.welcome();
 else if (upgradedFrom) ui.newVersion(upgradedFrom);
+else if (transportConverted) ui.transportNews(transportConverted);
 
 let lastFrame = performance.now();
 let renderAcc = 0;
