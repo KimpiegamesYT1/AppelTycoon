@@ -74,25 +74,38 @@ export class UI {
       if (l) this.game.tapStation(JSON.parse(l.dataset.st));
     });
 
-    // ingedrukt houden = herhaald kopen
-    const startHold = (e) => {
-      const b = e.target.closest('[data-hold]');
+    // ingedrukt houden = herhaald kopen, steeds sneller.
+    // Op een touchscreen via touch-events (met preventDefault), zodat lang drukken geen
+    // browsermenu of tekstselectie opent en het kopen niet onderbreekt.
+    const startHold = (b) => {
       if (!b || b.classList.contains('disabled')) return;
+      this.stopHoldNow();
       const ds = { ...b.dataset };
+      this.heldBtn = b;
+      b.classList.add('held');
       this.doAction(ds);
       let delay = 380;
       const step = () => {
+        if (!this.heldBtn) return;
         this.doAction(ds);
-        delay = Math.max(60, delay * 0.8);
+        delay = Math.max(55, delay * 0.8);
         this.hold = setTimeout(step, delay);
       };
       this.hold = setTimeout(step, delay);
     };
-    const stopHold = () => { clearTimeout(this.hold); this.hold = null; };
-    this.el.sheet.addEventListener('pointerdown', startHold);
-    window.addEventListener('pointerup', stopHold);
-    window.addEventListener('pointercancel', stopHold);
-    window.addEventListener('blur', stopHold);
+    const stopHold = () => this.stopHoldNow();
+    this.el.sheet.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') return;
+      startHold(e.target.closest('[data-hold]'));
+    });
+    this.el.sheet.addEventListener('touchstart', (e) => {
+      const b = e.target.closest('[data-hold]');
+      if (!b) return;
+      e.preventDefault();
+      startHold(b);
+    }, { passive: false });
+    this.el.sheet.addEventListener('contextmenu', (e) => { if (e.target.closest('[data-hold]')) e.preventDefault(); });
+    for (const ev of ['pointerup', 'pointercancel', 'touchend', 'touchcancel', 'blur']) window.addEventListener(ev, stopHold);
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { if (!this.el.modal.classList.contains('hidden')) this.closeModal(); else this.close(); }
@@ -131,7 +144,12 @@ export class UI {
     this.refresh();
   }
 
-  stopHoldNow() { clearTimeout(this.hold); this.hold = null; }
+  stopHoldNow() {
+    clearTimeout(this.hold);
+    this.hold = null;
+    if (this.heldBtn) this.heldBtn.classList.remove('held');
+    this.heldBtn = null;
+  }
 
   // ---------- Panelen ----------
 
@@ -188,6 +206,16 @@ export class UI {
     if (r.html !== this.lastHtml) {
       body.innerHTML = r.html;
       this.lastHtml = r.html;
+      // de knop die je ingedrukt houdt blijft hetzelfde element (anders mist hij het loslaten)
+      const held = this.heldBtn;
+      if (held) {
+        const fresh = [...body.querySelectorAll('[data-hold]')].find((x) => x.dataset.kind === held.dataset.kind && x.dataset.i === held.dataset.i);
+        if (fresh) {
+          held.className = fresh.className + ' held';
+          held.innerHTML = fresh.innerHTML;
+          fresh.replaceWith(held);
+        } else this.stopHoldNow();
+      }
     }
   }
 

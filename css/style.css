@@ -359,6 +359,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .buy-row .amounts { flex-direction: column; gap: 5px; }
 .buy-row .amt { padding: 5px 8px; font-size: 12px; }
 .buy { flex: 1; flex-direction: column; padding: 12px; font-size: 18px; }
+[data-hold] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: none; }
+.btn.held { transform: translateY(3px); box-shadow: 0 1px 0 var(--green-d); }
 .buy-l b { font-size: 15px; opacity: 0.9; }
 .buy-c { font-size: 22px; }
 
