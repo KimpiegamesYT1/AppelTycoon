@@ -136,7 +136,7 @@ export class UI {
       case 'music': g.setMusic(!this.state.settings.music); break;
       case 'quality': g.setQuality(d.v || 'auto'); break;
       case 'save': g.save(); this.toast('Spel opgeslagen', 'save'); break;
-      case 'update': this.toast('Nieuwste versie laden...', 'sparkle'); g.hardRefresh(); break;
+      case 'update': this.updateButton(); break;
       case 'reset-confirm': this.confirmReset(); break;
       case 'reset': g.hardReset(); break;
       case 'offline-claim': this.closeModal(); g.claimOffline(); break;
@@ -555,7 +555,7 @@ export class UI {
           <div class="list-row"><span class="li-text"><b>Geluidseffecten</b></span><button class="btn small ${s.settings.sound ? 'green' : ''}" data-action="sound">${s.settings.sound ? 'Aan' : 'Uit'}</button></div>
           <div class="list-row"><span class="li-text"><b>Graphics</b><small>${{ auto: 'Past zich aan', high: 'Altijd scherp', low: 'Spaart batterij' }[s.settings.quality] || ''}</small></span>
             <div class="amounts">${[['low', 'Zuinig'], ['auto', 'Auto'], ['high', 'Hoog']].map(([v, t]) => `<button class="amt ${s.settings.quality === v ? 'on' : ''}" data-action="quality" data-v="${v}">${t}</button>`).join('')}</div></div>
-          <div class="list-row ${this.updateReady ? 'update-ready' : ''}"><span class="li-text"><b>${this.updateReady ? 'Nieuwe versie!' : 'Versie'}</b><small>${this.updateReady ? 'Klaar om te laden' : (window.APP_VERSION || 'lokaal').slice(0, 7)}</small></span><button class="btn small ${this.updateReady ? 'green' : 'blue'}" data-action="update">Update laden</button></div>
+          ${this.updateRow()}
           <div class="stats">
             <div class="row"><span>Speeltijd</span><b>${duration(s.playTime)}</b></div>
             <div class="row"><span>Totaal verdiend</span><b>${money(s.totalEarned)}</b></div>
@@ -569,19 +569,45 @@ export class UI {
     };
   }
 
+  // Rij in de instellingen: zoekt naar een update, of laadt hem als er al een klaarstaat.
+  updateRow() {
+    const st = this.updateState || 'idle';
+    const ver = (window.APP_VERSION || 'lokaal').slice(0, 7);
+    const sub = { idle: `Versie ${ver}`, checking: 'Zoeken...', latest: `Nieuwste versie ${icon('check')}`, ready: 'Nieuwe versie gevonden!', offline: 'Geen verbinding' }[st];
+    const btn = st === 'ready' ? 'Update laden' : st === 'checking' ? 'Zoeken...' : 'Zoek update';
+    return `<div class="list-row ${st === 'ready' ? 'update-ready' : ''}"><span class="li-text"><b>Updates</b><small>${sub}</small></span>
+      <button class="btn small ${st === 'ready' ? 'green' : 'blue'} ${st === 'checking' ? 'disabled' : ''}" data-action="update">${btn}</button></div>`;
+  }
+
+  async updateButton() {
+    if (this.updateState === 'checking') return;
+    if (this.updateState === 'ready') { this.toast('Nieuwste versie laden...', 'sparkle'); this.game.hardRefresh(); return; }
+    const found = await this.checkUpdate(true);
+    if (found) { this.toast('Nieuwe versie gevonden, laden...', 'sparkle'); this.game.hardRefresh(); }
+    else if (this.updateState === 'latest') this.toast('Je hebt al de nieuwste versie', 'check');
+  }
+
   // Kijkt of er op de server een nieuwere versie staat (zonder cache). Zo ja: een rood stipje op
-  // het tandwiel en een groene knop "Update laden" in de instellingen.
-  async checkUpdate() {
-    if (this.updateReady || !window.APP_VERSION) return;
+  // het tandwiel en een groene knop "Update laden" in de instellingen. Geeft true als er een update is.
+  async checkUpdate(manual = false) {
+    if (this.updateState === 'ready') return true;
+    if (!window.APP_VERSION) { if (manual) this.updateState = 'latest'; this.refresh(); return false; }
+    if (manual) { this.updateState = 'checking'; this.refresh(); }
     try {
       const res = await fetch(`index.html?check=${Date.now()}`, { cache: 'no-store' });
       const m = (await res.text()).match(/APP_VERSION = '([0-9a-f]+)'/);
       if (m && m[1] !== window.APP_VERSION) {
-        this.updateReady = true;
+        this.updateState = 'ready';
         document.querySelector('#btn-settings').classList.add('has-update');
         this.refresh();
+        return true;
       }
-    } catch (e) { /* offline: dan niet */ }
+      this.updateState = 'latest';
+    } catch (e) {
+      if (manual) this.updateState = 'offline';
+    }
+    this.refresh();
+    return false;
   }
 
   // ---------- Modals ----------

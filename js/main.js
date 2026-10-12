@@ -338,15 +338,27 @@ if (new URLSearchParams(location.search).has('r')) {
   url.searchParams.delete('r');
   history.replaceState(null, '', url.href);
 }
-// af en toe kijken of er een nieuwe versie online staat (bij het starten en als je terugkomt in de app)
+// Op de achtergrond kijken of er een nieuwe versie online staat: bij het starten, elke 10 minuten
+// en als je terugkomt in de app. Was de app even weg en staat er een update klaar, dan laden we
+// hem meteen (dan zit je niet midden in het spel).
 let lastUpdateCheck = 0;
+let hiddenSince = 0;
 function maybeCheckUpdate() {
-  if (Date.now() - lastUpdateCheck < 120000) return;
+  if (document.hidden || Date.now() - lastUpdateCheck < 120000) return;
   lastUpdateCheck = Date.now();
   ui.checkUpdate();
 }
 setTimeout(maybeCheckUpdate, 5000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) maybeCheckUpdate(); });
+setInterval(maybeCheckUpdate, 10 * 60 * 1000);
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden) { hiddenSince = Date.now(); return; }
+  const away = hiddenSince ? Date.now() - hiddenSince : 0;
+  if (away > 60000) {
+    lastUpdateCheck = Date.now();
+    if (await ui.checkUpdate()) { game.hardRefresh(); return; }
+  }
+  maybeCheckUpdate();
+});
 function onHide() { game.save(); }
 window.addEventListener('pagehide', onHide);
 document.addEventListener('visibilitychange', () => { if (document.hidden) game.save(); });
