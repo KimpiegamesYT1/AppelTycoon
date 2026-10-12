@@ -531,6 +531,12 @@ export class World {
       this.scene.add(m);
       return m;
     });
+    this.saplings = new THREE.InstancedMesh(M.saplingGeometry(), M.MAT, 6 * 16);
+    this.saplings.castShadow = true;
+    this.saplings.count = 0;
+    this.saplings.frustumCulled = false;
+    this.scene.add(this.saplings);
+    this.plotsShown = 1;
     let seed = 3;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     this.treeSlots = [];
@@ -670,7 +676,8 @@ export class World {
     plots.forEach((c, k) => {
       const pb = new M.Builder();
       pb.box(11, 0.06, 11, M.C.grassDark, c.x, 0, c.z);
-      for (let i = 0; i < 4; i++) pb.box(11, 0.02, 0.6, 0x6aa84b, c.x, 0.06, c.z - 3.6 + i * 2.4);
+      // rijen aarde waar de bomen (en jonge boompjes) in staan
+      for (let i = 0; i < 4; i++) pb.box(10.2, 0.03, 1.1, 0x9a7a52, c.x, 0.06, c.z - 3.6 + i * 2.4);
       const patch = pb.mesh({ shadow: false, receive: true });
       g.add(patch);
       const fN = M.fence(11); fN.position.set(c.x - 5.5, 0, c.z - 5.5); g.add(fN);
@@ -1113,7 +1120,9 @@ export class World {
 
     // bomen
     const plots = TIERS[state.tier].plots;
-    const want = Math.min(plots * 16, 3 + Math.floor(state.orchard * 0.75));
+    // elk level een boom erbij; de rest van de velden staat vol jonge boompjes
+    const want = Math.min(plots * 16, 3 + state.orchard);
+    this.plotsShown = plots;
     if (want !== this.treeShown) {
       if (want > this.treeShown) for (let k = this.treeShown; k < want; k++) this.treeAnim[k] = this.time;
       this.treeShown = want;
@@ -1351,8 +1360,20 @@ export class World {
     this.target.z = Math.min(maxZ, Math.max(minZ, this.target.z));
   }
 
-  zoom(factor) {
+  // Zoomen rond een punt op het scherm (tussen je vingers of onder de muis): wat daar staat blijft
+  // onder je vingers, in plaats van dat alles naar het midden van het scherm toe of van weg schuift.
+  zoom(factor, sx = null, sy = null) {
+    const before = this.viewSize;
     this.viewSize = Math.min(this.maxZoom(), Math.max(12, this.viewSize * factor));
+    if (sx === null || this.viewSize === before) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const ox = sx - rect.left - rect.width / 2;
+    const oy = sy - rect.top - rect.height / 2;
+    const k = 1 - this.viewSize / before;
+    const wpp = this.worldPerPixel();
+    this.target.addScaledVector(SCREEN_RIGHT, ox * wpp * k);
+    this.target.addScaledVector(SCREEN_UP, (-oy * wpp * k) / Math.sin(EL));
+    this.clampTarget();
   }
 
   maxZoom() { return this.builtTier >= 7 ? 110 : 70; }
@@ -1393,6 +1414,7 @@ export class World {
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
         pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+        this.pinchMid = null;
         moved = 99;
       }
       lastT = performance.now();
@@ -1419,7 +1441,13 @@ export class World {
       } else if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
         const dist = Math.hypot(a.x - b.x, a.y - b.y);
-        if (pinchDist > 0) this.zoom(pinchDist / dist);
+        // rond het midden tussen de vingers, en dat midden mag ook schuiven (zoomen en slepen tegelijk)
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        if (pinchDist > 0) {
+          if (this.pinchMid) this.pan(mx - this.pinchMid.x, my - this.pinchMid.y);
+          this.zoom(pinchDist / dist, mx, my);
+        }
+        this.pinchMid = { x: mx, y: my };
         pinchDist = dist;
       }
     });
@@ -1435,7 +1463,7 @@ export class World {
         this.dragging = false;
         if (performance.now() - lastT > 60) this.velocity.set(0, 0);
       }
-      if (pointers.size < 2) pinchDist = 0;
+      if (pointers.size < 2) { pinchDist = 0; this.pinchMid = null; }
     };
     c.addEventListener('pointerup', up);
     c.addEventListener('pointercancel', up);
@@ -1443,7 +1471,7 @@ export class World {
       e.preventDefault();
       // muiswiel én trackpad: zoom evenredig met de scrollafstand
       const delta = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1);
-      this.zoom(Math.exp(Math.max(-120, Math.min(120, delta)) * 0.0012));
+      this.zoom(Math.exp(Math.max(-120, Math.min(120, delta)) * 0.0012), e.clientX, e.clientY);
     }, { passive: false });
   }
 
@@ -1562,6 +1590,19 @@ export class World {
       this.treeMeshes[v].setMatrixAt(counts[v]++, dummy.matrix);
     }
     this.treeMeshes.forEach((m, v) => { m.count = counts[v]; m.instanceMatrix.needsUpdate = true; });
+    // jonge boompjes op de plekken waar nog geen boom staat
+    let ns = 0;
+    const maxSlots = Math.min(this.treeSlots.length, this.plotsShown * 16);
+    for (let k = this.treeShown; k < maxSlots; k++) {
+      const s = this.treeSlots[k];
+      const sway = Math.sin(t * 1.6 + k) * 0.04;
+      dummy.position.set(s.x, 0, s.z);
+      dummy.rotation.set(sway, s.ry, sway);
+      dummy.scale.setScalar(0.9 + (k % 3) * 0.08);
+      dummy.updateMatrix();
+      this.saplings.setMatrixAt(ns++, dummy.matrix);
+    }
+    if (this.saplings.count !== ns || ns) { this.saplings.count = ns; this.saplings.instanceMatrix.needsUpdate = true; }
 
     // voertuigen
     // vrachtwagens: laden aan de deur, rijden weg (verkocht) en komen leeg terug

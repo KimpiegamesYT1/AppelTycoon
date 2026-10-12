@@ -144,6 +144,17 @@ export function treeGeometry(variant) {
   return b.geometry();
 }
 
+// Jong boompje met een steunpaaltje: zo zie je waar nog bomen bij kunnen als je de boomgaard upgradet.
+export function saplingGeometry() {
+  const b = new Builder();
+  b.cyl(0.05, 0.75, C.trunk, 0, 0, 0, { seg: 5 });
+  b.box(0.06, 0.95, 0.06, 0xd7b98a, 0.16, 0, 0);
+  b.box(0.2, 0.05, 0.05, 0xd7b98a, 0.08, 0.55, 0);
+  b.ico(0.32, C.leaf2, 0, 0.8, 0, { sy: 0.85 });
+  b.ico(0.2, C.leaf, 0.14, 1.0, 0.08);
+  return b.geometry();
+}
+
 export function bush(seed = 1) {
   const r = rng(seed);
   const b = new Builder();

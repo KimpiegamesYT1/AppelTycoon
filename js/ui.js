@@ -193,6 +193,8 @@ export class UI {
       </div>
       <div class="sheet-body"></div>`;
     this.el.sheet.classList.remove('hidden');
+    // de machinekaart staat laag, over de knoppen onderin (die heb je dan even niet nodig)
+    this.el.sheet.classList.toggle('sheet-station', id === 'station');
     requestAnimationFrame(() => this.el.sheet.classList.add('open'));
     this.lastHtml = '';
     this.refresh();
@@ -318,7 +320,7 @@ export class UI {
         const ssNext = E.computeProduction(after, 0, true);
         const goTo = (st, label) => `<button class="btn small" data-action="station" data-st='${JSON.stringify(typeof st === 'string' ? { kind: st } : st)}'>${label}</button>`;
         // korte, strakke melding met een knop naar de oplossing
-        const warn = (text, btn = '', bad = false) => `<div class="alert-pill ${bad ? 'bad' : ''}">${icon('alert')}<b>${text}</b>${btn}</div>`;
+        const warn = (text, btn = '', bad = false) => `<div class="alert-pill ${bad === 'ok' ? 'ok' : bad ? 'bad' : ''}">${icon(bad === 'ok' ? 'check' : 'alert')}<b>${text}</b>${btn}</div>`;
         const chip = (label, value, up = '', cls = '') => `<div class="chip-stat ${cls}"><small>${label}</small><b>${value}</b>${up ? `<em>${up}</em>` : ''}</div>`;
         const demand = LINES.reduce((t, l, i) => t + E.lineRate(s, i) * l.apples, 0);
         let title;
@@ -329,9 +331,11 @@ export class UI {
           chips.push(chip('Plukken', rate(E.orchardRate(s)) + '/s', '→ ' + rate(E.orchardRate(after)) + '/s'));
           chips.push(chip('Machines willen', rate(demand) + '/s', '', demand > E.orchardRate(s) * 1.02 ? 'bad' : ''));
           // als percentage: grote getallen (45,6K/50,0K) passen niet in het vakje
-          chips.push(chip('Appelbak', `${Math.min(100, Math.round((s.apples / prod.binCap) * 100))}%`, prod.binFull ? 'vol' : '', prod.binFull ? 'bad' : ''));
-          if (prod.binFull) extra = warn('Appelbak vol!', goTo(this.cheapestLine(), 'Machines'));
-          else if (demand > E.orchardRate(s) * 1.02) extra = warn('Niet genoeg appels!');
+          chips.push(chip('Appelbak', `${Math.min(100, Math.round((s.apples / prod.binCap) * 100))}%`, prod.binFull ? 'vol' : ''));
+          // uitleg van de keten in één regel: bomen -> plukkers -> appelbak -> machines
+          extra = `<div class="orchard-how">${glyph('orchard')} Bomen ${icon('right')} plukkers ${icon('right')} appelbak ${icon('right')} machines</div>`;
+          if (prod.binFull) extra += warn('Genoeg appels! Upgrade eerst je machines.', goTo(this.cheapestLine(), 'Machines'), 'ok');
+          else if (demand > E.orchardRate(s) * 1.02) extra += warn('Te weinig appels: upgrade de boomgaard!');
         } else if (st.kind === 'sales') {
           title = SALES.name;
           const trucks = E.truckCount(level);
@@ -1172,13 +1176,14 @@ export class UI {
     for (const it of lineItems) it.el.classList.add('slim');
     for (const it of lineItems) { it.sw = it.el.offsetWidth; it.sh = it.el.offsetHeight; }
     const placed = [];
-    const hits = (r) => placed.some((q) => r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0);
-    const rect = (it, w, h, pad = 2) => ({ x0: it.x - w / 2 - pad, x1: it.x + w / 2 + pad, y0: it.y - h - pad, y1: it.y + pad });
+    // één regel voor 'raakt': de rechthoeken overlappen meer dan 2 pixels in beide richtingen
+    // (zowel bij het kiezen van de vorm als bij het verbergen, anders verdwijnen er losse bordjes)
+    const collide = (ra, rb) => Math.min(ra.x1, rb.x1) - Math.max(ra.x0, rb.x0) > 2 && Math.min(ra.y1, rb.y1) - Math.max(ra.y0, rb.y0) > 2;
+    const hits = (r) => placed.some((q) => collide(r, q));
+    const rect = (it, w, h, pad = 0) => ({ x0: it.x - w / 2 - pad, x1: it.x + w / 2 + pad, y0: it.y - h - pad, y1: it.y + pad });
     // een rondje mag een klein beetje over een ander heen vallen (het pijltje steekt eruit)
     const small = 24;
     const live = items.filter((it) => it.p >= 0);
-    // De machinebordjes doen alles samen: allemaal volledig, of allemaal een rondje. Om en om groot
-    // en klein ziet er rommelig uit. Een kleine marge voorkomt heen en weer springen tijdens het zoomen.
     const lines = live.filter((it) => it.st.kind === 'line' && it.p < 70);
     const others = live.filter((it) => !(it.st.kind === 'line' && it.p < 70));
     // drie standen voor alle machinebordjes samen: 0 = volledig, 1 = smal, 2 = rondje
@@ -1188,8 +1193,7 @@ export class UI {
       const size = (it) => (lines.includes(it) ? (mode === 1 ? [it.sw, it.sh] : [it.w, it.h]) : [it.w, it.h]);
       const overlap = (a, b) => {
         const [aw, ah] = size(a), [bw, bh] = size(b);
-        const ra = rect(a, aw, ah, margin / 2), rb = rect(b, bw, bh, margin / 2);
-        return Math.min(ra.x1, rb.x1) - Math.max(ra.x0, rb.x0) > 2 && Math.min(ra.y1, rb.y1) - Math.max(ra.y0, rb.y0) > 2;
+        return collide(rect(a, aw, ah, margin / 2), rect(b, bw, bh, margin / 2));
       };
       for (let i = 0; i < lines.length; i++) {
         for (let j = i + 1; j < lines.length; j++) if (overlap(lines[i], lines[j])) return false;
@@ -1209,8 +1213,8 @@ export class UI {
       const canShrink = it.p < 70;
       let compact = canShrink && (isLine ? crowded : compactZoom);
       const slim = isLine && mode === 1;
-      let r = compact ? rect(it, small, small, 0) : slim ? rect(it, it.sw, it.sh) : rect(it, it.w, it.h);
-      if (!isLine && hits(r) && canShrink && !compact) { compact = true; r = rect(it, small, small, 0); }
+      let r = compact ? rect(it, small, small) : slim ? rect(it, it.sw, it.sh) : rect(it, it.w, it.h);
+      if (!isLine && hits(r) && canShrink && !compact) { compact = true; r = rect(it, small, small); }
       const hide = hits(r) && it.p < 70;
       it.el.classList.toggle('compact', compact);
       it.el.classList.toggle('slim', slim);
@@ -1242,8 +1246,15 @@ export class UI {
       } else {
         const f = st.kind === 'orchard' ? s.apples / prod.binCap : s.goods / prod.storeCap;
         const pct = Math.round(Math.min(1, f) * 20) * 5;
-        const full = st.kind === 'orchard' ? prod.binFull : prod.storeFull;
-        bar = `<span class="lb-bar ${full ? 'full' : ''}"><i style="width:${pct}%"></i></span>${full ? '<span class="lb-full">VOL</span>' : ''}`;
+        if (st.kind === 'orchard') {
+          // een volle appelbak is geen probleem (genoeg appels); alarm alleen als machines op appels wachten
+          const short = prod.lines.some((l, i) => s.lines[i] > 0 && l.status === 'apples');
+          bar = `<span class="lb-bar apples"><i style="width:${pct}%"></i></span>`;
+          if (short) warn = '<span class="warn-dot">!</span>';
+        } else {
+          const full = prod.storeFull;
+          bar = `<span class="lb-bar ${full ? 'full' : ''}"><i style="width:${pct}%"></i></span>${full ? '<span class="lb-full">VOL</span>' : ''}`;
+        }
       }
       html = `<span class="lb-icon">${stationGlyph(st, LINES)}</span><span class="lb-lv">Lv ${lv}</span>${bar}${warn}${can ? `<span class="up">${icon('up')}</span>` : ''}`;
     } else if (st.kind === 'unlock') {
