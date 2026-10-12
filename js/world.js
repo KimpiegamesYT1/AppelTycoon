@@ -748,7 +748,7 @@ export class World {
     this.lineObjs.forEach((o) => { if (o) { this.scene.remove(o.group); disposeTree(o.group); } });
     this.lineObjs = [];
     this.lineFlows = [];
-    this.trucks.forEach((t) => { this.scene.remove(t.obj); disposeTree(t.obj); });
+    this.trucks.forEach((t) => t.objs.forEach((o) => { this.scene.remove(o); disposeTree(o); }));
     this.trucks = [];
     this.builtLines = [];
 
@@ -1336,7 +1336,7 @@ export class World {
     const stage = vehicleStage(state.sales);
     if (stage !== this.vehicleStage) {
       const upgrade = this.vehicleStage != null && this.trucks.length > 0;
-      this.trucks.forEach((t) => { this.scene.remove(t.obj); disposeTree(t.obj); });
+      this.trucks.forEach((t) => t.objs.forEach((o) => { this.scene.remove(o); disposeTree(o); }));
       this.trucks = [];
       this.vehicleStage = stage;
       while (this.trucks.length < trucks) this.addTruck(this.trucks.length);
@@ -1413,19 +1413,44 @@ export class World {
     this.pickers.push({ obj, state: 'idle', wait: Math.random() * 2, target: new THREE.Vector3() });
   }
 
+  // Per laadplek drie voertuigen die elkaar afwisselen: de volle rijdt weg en verdwijnt uit beeld,
+  // terwijl er een lege van de andere kant aankomt (rechts rijden) en achteruit tegen de deur zet.
+  // Zo hoeft niemand op de weg om te keren, en blijft de timing gelijk aan de economie.
   addTruck(k) {
     const colors = [0xd9473b, 0x3d7bd9, 0x27ae60, 0xf39c12, 0x8e44ad, 0x16a085];
-    const obj = M.vehicle(this.vehicleStage || 0, colors[k % colors.length], k);
-    this.scene.add(obj);
     const z = dockZ(k);
-    // achterkant van het voertuig tegen de laaddeur
-    const park = DX1 + 0.25 + obj.userData.len / 2;
-    // korte rit: de vrachtwagen keert op de weg om, zodat er elke ~10 s een vrachtwagen met geld vertrekt
-    const turn = 34;
-    const path = [[park, z], [ROAD_X - 0.5, z], [ROAD_X - 0.5, turn], [ROAD_X + 3.5, turn], [ROAD_X + 3.5, z], [park + 4.5, z]];
-    // de positie komt uit de economie (state.trucks[k].t), zodat verkoop en beeld kloppen
-    const mover = new PathMover(obj, path, 12, { reverse: [5] });
-    this.trucks.push({ obj, mover });
+    const objs = [], movers = [];
+    for (let v = 0; v < 3; v++) {
+      const obj = M.vehicle(this.vehicleStage || 0, colors[(k + v * 2) % colors.length], k * 3 + v);
+      obj.visible = v === 0;
+      this.scene.add(obj);
+      objs.push(obj);
+      // achterkant van het voertuig tegen de laaddeur
+      const park = DX1 + 0.25 + obj.userData.len / 2;
+      // aankomst: van ver weg over de verste rijbaan, oversteken, en achteruit inparkeren;
+      // de lengte is zo gekozen dat hij net zo snel rijdt als vroeger (~12 per seconde)
+      const rest = (ROAD_X + 3.5) - (park + 4.5) + 4.5;
+      const far = Math.max(40, 12 * (TRUCK.cycle - TRUCK.loadTime) - rest);
+      const path = [[ROAD_X + 3.5, z + far], [ROAD_X + 3.5, z], [park + 4.5, z], [park, z]];
+      movers.push(new PathMover(obj, path, 12, { reverse: [2] }));
+      obj.userData.park = park;
+    }
+    this.trucks.push({ objs, movers, cur: 0, leavers: [], loading: true, get obj() { return this.objs[this.cur]; } });
+  }
+
+  // De volle vrachtwagen rijdt de weg op en verder tot hij uit beeld is.
+  truckLeave(tr, k, last) {
+    const obj = tr.objs[tr.cur];
+    const z = dockZ(k);
+    const mover = new PathMover(obj, [[obj.userData.park, z], [ROAD_X - 0.5, z], [ROAD_X - 0.5, z + 110]], 12);
+    mover.heading = obj.rotation.y;
+    const cargo = obj.userData.cargo;
+    cargo.show(Math.round(Math.min(1, last) * cargo.length));
+    tr.leavers.push({ obj, mover, d: 0 });
+    tr.cur = (tr.cur + 1) % tr.objs.length;
+    // (op een heel trage telefoon kan die nog onderweg zijn: dan stopt hij met wegrijden)
+    tr.leavers = tr.leavers.filter((lv) => lv.obj !== tr.objs[tr.cur]);
+    tr.objs[tr.cur].visible = true;
   }
 
   // ---------- Effecten ----------
@@ -1810,11 +1835,26 @@ export class World {
     this.trucks.forEach((tr, k) => {
       const st = this.state && this.state.trucks && this.state.trucks[k];
       if (!st) return;
-      const d = st.t < L ? 0 : ((st.t - L) / (TRUCK.cycle - L)) * tr.mover.total;
-      tr.mover.setDistance(d, dt);
-      const full = st.t < L ? (this.truckCap > 0 ? st.load / this.truckCap : 0) : tr.mover.seg < 2 ? st.last : 0;
+      const loading = st.t < L;
+      // net vertrokken: deze rijdt weg, de volgende komt eraan
+      if (tr.loading && !loading) this.truckLeave(tr, k, st.last);
+      tr.loading = loading;
+      const mover = tr.movers[tr.cur];
+      // PathMover-routes zijn rondjes; het einde van de aankomst is het laatste punt (de laaddeur)
+      const end = mover.starts[mover.points.length - 1];
+      // tijdens het laden staat hij aan de deur
+      const d = loading ? end : ((st.t - L) / (TRUCK.cycle - L)) * end;
+      mover.setDistance(Math.min(end - 1e-3, d), dt);
+      const full = loading ? (this.truckCap > 0 ? st.load / this.truckCap : 0) : 0;
       const cargo = tr.obj.userData.cargo;
       cargo.show(Math.round(full * cargo.length));
+      // wegrijders: doorrijden tot uit beeld, dan verbergen
+      tr.leavers = tr.leavers.filter((lv) => {
+        lv.d += 12 * dt;
+        if (lv.d >= lv.mover.starts[lv.mover.points.length - 1] - 0.01) { if (lv.obj !== tr.obj) lv.obj.visible = false; return false; }
+        lv.mover.setDistance(lv.d, dt);
+        return true;
+      });
     });
     for (const fl of this.forklifts || []) {
       fl.mover.update(dt);
