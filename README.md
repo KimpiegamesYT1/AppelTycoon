@@ -37,15 +37,23 @@ Bediening: slepen om te bewegen, scrollen/knijpen om te zoomen, tikken op een st
 
 ## Balans
 
-Alle getallen staan in [`js/config.js`](js/config.js). De simulatie in [`tools/balance-sim.mjs`](tools/balance-sim.mjs) speelt het spel met een bot ([`tools/bot.mjs`](tools/bot.mjs)) die steeds de beste aankoop doet en daarbij de keten in balans houdt:
+Alle getallen staan in [`js/config.js`](js/config.js). Een bot ([`tools/bot.mjs`](tools/bot.mjs)) speelt het spel en doet steeds de beste aankoop, waarbij hij de keten in balans houdt.
 
 ```bash
-node tools/balance-sim.mjs 120             # eerste ronde, 120 minuten
+node tools/balance-check.mjs               # alle balanstests (± 1 min)
+node tools/balance-sim.mjs 120             # eerste ronde, 120 minuten, met tijdlijn
 node tools/balance-sim.mjs 480 --prestige  # met investeerdersrondes
 node tools/calibrate.mjs --write           # bouwprijzen van lijnen en hallen afstemmen op doeltijden
 ```
 
-Richtwaarden voor de bot (een echte speler doet er langer over): Fabriek ~12 min, Grote Fabriek ~21, Industriehal ~42, Megafabriek ~64, Appelstroop ~74, Gigafabriek ~1u40. Eerste investeerders (+20, dus +100% inkomen) na ~1u30; ronde 2 ~1u45 (met Gigafabriek), ronde 3 ~1u15 (met Karamelappels), daarna steeds sneller. Lijn-upgrades verdienen zich in de eerste ronde in 0,5–2,5 minuut terug; een boomgaard- of vrachtwagen-upgrade kost meestal 5–25 seconden inkomen (de simulatie print beide).
+`balance-check` speelt met vier soorten spelers (slimme speler, gewone speler die elke 20 s het goedkoopste pijltje koopt, luie speler die elke 5 min kijkt, en een speler met investeerdersrondes) plus de intro, en controleert 30 criteria:
+
+- **Tijdlijn eerste ronde (slimme speler):** Werkplaats ~6 min, Fabriek ~13, Grote Fabriek ~20, Industriehal ~33, Megafabriek ~51, Appelstroop ~56. Een gewone speler doet er hooguit 2,5x zo lang over; een luie speler haalt de Grote Fabriek in ruim een uur.
+- **Alle machines verdienen mee:** geen enkele machine levert meer dan 60% van het inkomen, de helft van de machines elk minstens 5%. Elk nieuw product levert op hetzelfde level ongeveer 2x zoveel op als het vorige. Bij appeltekort krijgt elke machine naar verhouding minder.
+- **Upgrades lonen:** mediane terugverdientijd van een lijn-upgrade onder 1 minuut in het eerste uur; tot het moment voor investeerders nooit langer dan 12 minuten niets te kopen.
+- **Boomgaard en vrachtwagens** kosten meestal 5–30 seconden inkomen per upgrade (per uitbreiding duurder, maar ook 50% productiever), en lopen nooit vast.
+- **Taken** geven 4–12 seconden inkomen; er zijn er steeds nieuwe haalbaar.
+- **Investeerders:** eerste +10 rond een uur, als de ronde vlak wordt; daarna rondes van ~50–60 minuten die het inkomen steeds ongeveer verdubbelen, zonder ontsporing.
 
 ## Techniek
 

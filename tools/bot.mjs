@@ -45,7 +45,7 @@ export function best(s, allow) {
     if (d <= 0) continue;
     const wait = b.cost > s.money ? (b.cost - s.money) / Math.max(inc, 1e-9) : 0;
     const score = wait + (b.cost / d) * (o.bias ?? 1);
-    if (score < bestScore) { bestScore = score; bestO = { ...o, cost: b.cost, extra: b.extra }; }
+    if (score < bestScore) { bestScore = score; bestO = { ...o, base: o.cost, cost: b.cost, extra: b.extra }; }
   }
   return bestO;
 }
@@ -57,7 +57,8 @@ export function spend(s, allow) {
     const o = best(s, allow);
     if (!o || o.cost > s.money) break;
     const incBefore = E.incomePerSecond(s);
-    if (o.event) { o.apply(s); s.money -= o.cost; } else { s.money -= bundle(s, o).cost; }
+    // bundle rekent zelf de boomgaard/vrachtwagens erbij: begin bij de kale prijs
+    if (o.event) { o.apply(s); s.money -= o.cost; } else { s.money -= bundle(s, { ...o, cost: o.base }).cost; }
     o.gain = E.incomePerSecond(s) - incBefore;
     bought.push(o);
   }

@@ -4,7 +4,7 @@ import {
   UPGRADES, INVESTOR_BONUS, INVESTOR_BASE, INVESTOR_POWER, DOCK_LEVELS, PICKER_LEVELS, TRUCK,
 } from './config.js';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export function newState() {
   return {
@@ -107,7 +107,7 @@ export function lineRate(state, i, level = state.lines[i]) {
 
 // Hoeveel kratten per seconde de vrachtwagens wegbrengen.
 export function transportRate(state, level = state.sales) {
-  return SALES.baseRate * SALES.levelGrowth ** (level - 1) * truckCount(level) * upgradeMult(state, 'transport', 'speed');
+  return SALES.baseRate * SALES.levelGrowth ** (level - 1) * truckCount(level) * tierOrchardMult(state) * upgradeMult(state, 'transport', 'speed');
 }
 
 export function binCapacity(state, level = state.orchard) {
@@ -156,7 +156,7 @@ export function nextDockLevel(level) {
   return DOCK_LEVELS.find((l) => level < l) || null;
 }
 
-// Verdeelt de appels over de lijnen: duurste producten (per appel) eerst.
+// Vaste volgorde van de lijnen (duurste per appel eerst); de appels zelf worden naar verhouding verdeeld.
 function lineOrder(state) {
   const idx = LINES.map((l, i) => i).filter((i) => state.lines[i] > 0);
   const v = idx.map((i) => lineValue(state, i) / LINES[i].apples);
@@ -172,7 +172,7 @@ export function computeProduction(state, now = 0, steady = false) {
   const binCap = binCapacity(state);
   const storeCap = storeCapacity(state);
   const binFull = !steady && state.apples >= binCap * 0.995;
-  const storeFull = !steady && state.goods >= storeCap * 0.995;
+  const storeFull = !steady && state.goods >= storeCap * 0.95;
   // ligt er een voorraad appels, dan kunnen de lijnen op volle snelheid draaien
   let applesLeft = !steady && state.apples > 1 ? Infinity : supply;
   // is het magazijn vol, dan kan er alleen zoveel bij als de vrachtwagens weghalen
@@ -185,18 +185,20 @@ export function computeProduction(state, now = 0, steady = false) {
   let used = 0;
   let potential = 0;
   let potentialValue = 0;
-  // 1) appels verdelen: duurste producten (per appel) eerst
+  // 1) appels verdelen: is er te weinig, dan krijgt elke machine naar verhouding minder
+  //    (zo valt er nooit één machine helemaal stil en verdienen ze allemaal mee)
+  let demand = 0;
+  for (const i of lineOrder(state)) demand += lineRate(state, i) * LINES[i].apples;
+  const share = demand > 0 ? Math.min(1, applesLeft / demand) : 1;
   const want = [];
   for (const i of lineOrder(state)) {
     const max = lineRate(state, i);
     if (max <= 0) continue;
-    const l = LINES[i];
-    const rate = Math.min(max, applesLeft / l.apples);
-    applesLeft -= rate * l.apples;
+    const rate = max * share;
     const v = lineValue(state, i);
     potential += rate;
     potentialValue += rate * v;
-    want.push({ i, max, rate, v, status: rate < max * 0.98 ? 'apples' : 'ok' });
+    want.push({ i, max, rate, v, status: share < 0.98 ? 'apples' : 'ok' });
   }
   // 2) kan het magazijn/vervoer het niet aan, dan krijgen alle lijnen naar verhouding minder ruimte
   const f = potential > outLeft ? outLeft / potential : 1;
@@ -253,9 +255,18 @@ function maxAffordable(base, growth, level, money) {
   return Math.floor(Math.log(money * (growth - 1) / first + 1) / Math.log(growth));
 }
 
-export function stationInfo(kind, i) {
-  if (kind === 'orchard') return { base: ORCHARD.baseCost, growth: ORCHARD.growth };
-  if (kind === 'sales') return { base: SALES.baseCost, growth: SALES.growth };
+// Boomgaard en vrachtwagens worden per uitbreiding duurder (maar ook productiever), zodat ze
+// met je fabriek meegroeien zonder dat één level onbetaalbaar duur wordt.
+export function chainCostMult(state) {
+  let m = 1;
+  for (let t = 0; t <= state.tier; t++) m *= TIERS[t].chain || 1;
+  return m;
+}
+
+export function stationInfo(kind, i, state = null) {
+  const cm = state ? chainCostMult(state) : 1;
+  if (kind === 'orchard') return { base: ORCHARD.baseCost * cm, growth: ORCHARD.growth };
+  if (kind === 'sales') return { base: SALES.baseCost * cm, growth: SALES.growth };
   return { base: LINES[i].cost, growth: LINE_GROWTH };
 }
 
@@ -267,7 +278,7 @@ export function stationLevel(state, kind, i) {
 
 // amount: 1, 10, of 'max'. Geeft { count, cost } terug.
 export function upgradeQuote(state, kind, i, amount) {
-  const { base, growth } = stationInfo(kind, i);
+  const { base, growth } = stationInfo(kind, i, state);
   const level = stationLevel(state, kind, i);
   if (amount === 'max') {
     const count = Math.max(1, maxAffordable(base, growth, level, state.money));
@@ -391,13 +402,13 @@ export function tick(state, dt, now = 0, events = null) {
     state.apples = Math.min(binCap, state.apples + supply * h);
     // eerst appels verdelen, daarna de ruimte in het magazijn naar verhouding
     const space = storeCap - state.goods;
-    let applesLeft = state.apples;
+    let need = 0;
+    for (const i of order) need += rates[i] * h * LINES[i].apples;
+    const share = need > 0 ? Math.min(1, state.apples / need) : 1;
     let pieces = 0;
     const take = [];
     for (const i of order) {
-      const l = LINES[i];
-      const n = Math.max(0, Math.min(rates[i] * h, applesLeft / l.apples));
-      applesLeft -= n * l.apples;
+      const n = rates[i] * h * share;
       pieces += n;
       take.push([i, n]);
     }

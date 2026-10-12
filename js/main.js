@@ -12,12 +12,14 @@ const SAVE_KEY = 'appeltycoon.save.v1';
 
 function migrate(d) {
   const base = E.newState();
-  // versie 2 had een andere economie (zonder sterren): nieuwe ronde, maar investeerders en statistieken blijven
-  if (d.version === 2) {
+  // versie 2 en 3 hadden een andere balans: nieuwe ronde, maar investeerders en statistieken blijven
+  // (vanaf versie 3 blijft ook een afgeronde intro afgerond)
+  if (d.version === 2 || d.version === 3) {
     base.settings = { ...base.settings, ...(d.settings || {}) };
-    for (const k of ['investors', 'prestiges', 'totalEarned', 'playTime']) if (Number.isFinite(d[k])) base[k] = d[k];
+    for (const k of ['investors', 'prestiges', 'playTime']) if (Number.isFinite(d[k])) base[k] = d[k];
     base.stats = { ...base.stats, ...(d.stats || {}) };
-    base.upgradedFrom = 2;
+    if (d.version === 3 && Number.isFinite(d.tutorial)) base.tutorial = d.tutorial;
+    base.upgradedFrom = d.version;
     return base;
   }
   // versie 1 had een heel andere economie: begin opnieuw, maar houd de instellingen (muziek weer aan)
@@ -238,7 +240,7 @@ const gap0 = (Date.now() - state.lastTick) / 1000;
 state.lastTick = Date.now();
 if (!firstVisit && gap0 > 30) handleGap(gap0);
 if (firstVisit) ui.welcome();
-else if (upgradedFrom) ui.newVersion();
+else if (upgradedFrom) ui.newVersion(upgradedFrom);
 
 let lastFrame = performance.now();
 let renderAcc = 0;

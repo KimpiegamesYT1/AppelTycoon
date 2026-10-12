@@ -605,9 +605,12 @@ export class UI {
       <button class="btn green wide" data-action="modal-close">Starten!</button>`, true);
   }
 
-  newVersion() {
+  newVersion(from) {
+    const what = from === 2
+      ? 'Elke upgrade maakt je producten nu meer waard. Bij een <b>ster</b> wordt een machine sneller of meer waard, en in het menu <b>Upgrades</b> vind je flinke bonussen.'
+      : 'De balans is vernieuwd: <b>al je machines verdienen nu mee</b>, niet alleen de nieuwste. Ook de taken, boomgaard en vrachtwagens zijn opnieuw afgesteld.';
     this.modal(`<div class="modal-icon">${icon('star', 'gold-ic')}</div><h2>Nieuwe versie!</h2>
-      <p>Elke upgrade maakt je producten nu meer waard. Bij een <b>ster</b> wordt een machine twee keer zo snel, en in het nieuwe menu <b>Upgrades</b> vind je flinke bonussen.</p>
+      <p>${what}</p>
       <p>Je begint een nieuwe ronde. Je <b>${fmt(this.state.investors)} investeerders</b> blijven.</p>
       <button class="btn green wide" data-action="modal-close">Starten!</button>`, true);
   }
@@ -896,7 +899,8 @@ export class UI {
       } else {
         const f = st.kind === 'orchard' ? s.apples / prod.binCap : s.goods / prod.storeCap;
         const pct = Math.round(Math.min(1, f) * 20) * 5;
-        bar = `<span class="lb-bar ${pct >= 97 ? 'full' : ''}"><i style="width:${pct}%"></i></span>${pct >= 97 ? '<span class="lb-full">VOL</span>' : ''}`;
+        const full = st.kind === 'orchard' ? prod.binFull : prod.storeFull;
+        bar = `<span class="lb-bar ${full ? 'full' : ''}"><i style="width:${pct}%"></i></span>${full ? '<span class="lb-full">VOL</span>' : ''}`;
       }
       html = `<span class="lb-icon">${stationGlyph(st, LINES)}</span><span class="lb-lv">Lv ${lv}</span>${bar}${warn}${can ? `<span class="up">${icon('up')}</span>` : ''}`;
     } else if (st.kind === 'unlock') {
