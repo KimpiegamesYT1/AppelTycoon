@@ -293,7 +293,8 @@ export class UI {
           title = ORCHARD.name;
           chips.push(chip('Plukken', rate(E.orchardRate(s)) + '/s', '→ ' + rate(E.orchardRate(after)) + '/s'));
           chips.push(chip('Machines willen', rate(demand) + '/s', '', demand > E.orchardRate(s) * 1.02 ? 'bad' : ''));
-          chips.push(chip('Appelbak', `${fmt(s.apples)}/${fmt(prod.binCap)}`, '', prod.binFull ? 'bad' : ''));
+          // als percentage: grote getallen (45,6K/50,0K) passen niet in het vakje
+          chips.push(chip('Appelbak', `${Math.min(100, Math.round((s.apples / prod.binCap) * 100))}%`, prod.binFull ? 'vol' : '', prod.binFull ? 'bad' : ''));
           if (prod.binFull && demand <= 0) extra = warn('Appelbak vol!', goTo('stations', 'Machines'));
           else if (prod.binFull) extra = warn('Appelbak vol!', goTo('stations', 'Machines'));
           else if (demand > E.orchardRate(s) * 1.02) extra = warn('Niet genoeg appels!');
@@ -305,7 +306,7 @@ export class UI {
           chips.push(chip('Fabriek maakt', rate(ss.potential) + '/s', '', ss.potential > ss.transport * 1.001 ? 'bad' : ''));
           const veh = E.vehicle(level), vNext = E.vehicle(level + q.count);
           chips.push(chip(veh.plural[0].toUpperCase() + veh.plural.slice(1), `${trucks}`, vNext !== veh ? `→ ${vNext.name}` : tNext > trucks ? `→ ${tNext}` : ''));
-          chips.push(chip('Magazijn', `${fmt(s.goods)}/${fmt(prod.storeCap)}`, '', prod.storeFull ? 'bad' : ''));
+          chips.push(chip('Magazijn', `${Math.min(100, Math.round((s.goods / prod.storeCap) * 100))}%`, prod.storeFull ? 'vol' : '', prod.storeFull ? 'bad' : ''));
           if (prod.storeFull) extra = warn('Magazijn vol!', '', true);
         } else {
           const l = LINES[st.i];
@@ -649,13 +650,16 @@ export class UI {
       <button class="btn green wide" data-action="modal-close">Starten!</button>`, true);
   }
 
-  // Eenmalige uitleg na de vervoer-update (versie 6): je level is omgerekend, je ronde loopt gewoon door.
-  transportNews(c) {
+  // Eenmalige uitleg na een balans-update (versie 6/7): levels zijn omgerekend, je ronde loopt gewoon door.
+  balanceNews(transport, lines) {
+    const items = [];
+    if (lines) items.push('<b>Nieuwe machines beginnen nu op level 1</b> en groeien geleidelijk mee. Oudere machines staan hoger, en elke machine levert iets anders op.');
+    if (transport) items.push('<b>Het vervoer groeit in kleinere stappen</b>, dus je koopt het vaker bij. Een pijltje laat zien wanneer dat nodig is.');
     // staat er al een venster open (bv. offline-inkomen), dan alleen een korte melding
-    if (!this.el.modal.classList.contains('hidden')) { this.toast(`Vervoer vernieuwd: nu level ${c.to}, kleinere stappen`, 'up'); return; }
-    this.modal(`<div class="modal-icon">${glyph('sales')}</div><h2>Vervoer vernieuwd!</h2>
-      <p>Het vervoer groeit nu in <b>kleinere stappen</b>, dus je moet het vaker bijkopen als je fabriek groeit. Een <b>pijltje</b> laat zien wanneer dat nodig is.</p>
-      <p>Je vervoer is omgerekend naar <b>level ${c.to}</b>, met genoeg capaciteit voor je fabriek. Je ronde loopt gewoon door.</p>
+    if (!this.el.modal.classList.contains('hidden')) { this.toast('Balans vernieuwd: je levels zijn omgerekend', 'up'); return; }
+    this.modal(`<div class="modal-icon">${icon('star', 'gold-ic')}</div><h2>Balans vernieuwd!</h2>
+      ${items.map((t) => `<p>${t}</p>`).join('')}
+      <p>Je levels zijn omgerekend zodat je ongeveer hetzelfde blijft verdienen. Je ronde loopt gewoon door.</p>
       <button class="btn green wide" data-action="modal-close">Verder spelen</button>`, true);
   }
 

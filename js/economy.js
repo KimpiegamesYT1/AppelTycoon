@@ -4,7 +4,7 @@ import {
   UPGRADES, INVESTOR_BONUS, INVESTOR_BASE, INVESTOR_POWER, DOCK_LEVELS, PICKER_LEVELS, TRUCK, VEHICLES,
 } from './config.js';
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export function newState() {
   return {

@@ -48,20 +48,22 @@ export const VEHICLES = [
 export const PICKER_LEVELS = [3, 6, 10, 15, 20, 25, 30, 35, 40, 50, 60];
 
 // Productielijnen. Elk level verhoogt de prijs per stuk (value x level). Sterren verdubbelen
-// om en om de snelheid en de prijs. Elk nieuw product levert op hetzelfde level ongeveer 2x zoveel op
-// als het vorige, zodat ook oude machines blijven meetellen. value = prijs op level 1, apples = appels per stuk,
-// rate = stuks per seconde, cost = prijs eerste upgrade, growth = hoeveel duurder elk level wordt
+// om en om de snelheid en de prijs. Een nieuwe lijn begint op level 1: cost is ~3% van de bouwprijs,
+// zodat je er meteen een paar levels bij koopt maar niet honderden; value is zo gekozen dat de lijn
+// ~10 minuten na het bouwen zo'n kwart van het inkomen levert (tools/calibrate-lines.mjs).
+// value = prijs op level 1, apples = appels per stuk, rate = stuks per seconde,
+// cost = prijs eerste upgrade, growth = hoeveel duurder elk level wordt
 // (standaard LINE_GROWTH; de eerste machine wordt sneller duurder: snel begin, daarna vlakt hij af),
 // unlock = prijs om de lijn te bouwen.
 export const LINES = [
   { id: 'fresh', name: 'Verse Appels',  machine: 'Sorteer- & inpakstation', value: 1,      apples: 1,  rate: 1.0,  cost: 5, growth: 1.075,unlock: 1e1,    color: 0xe8423f },
-  { id: 'juice', name: 'Appelsap',      machine: 'Sappers',                 value: 4,      apples: 2,  rate: 0.5,  cost: 180,    unlock: 5.6e4,    color: 0xf2c14e },
-  { id: 'sauce', name: 'Appelmoes',     machine: 'Kookketel',               value: 10,     apples: 3,  rate: 0.4,  cost: 400,    unlock: 6.4e6,  color: 0xf6e7b0 },
-  { id: 'chips', name: 'Appelchips',    machine: 'Droogoven',               value: 25,     apples: 4,  rate: 0.32, cost: 880,    unlock: 1.6e8,  color: 0xd9a35b },
-  { id: 'pie',   name: 'Appeltaart',    machine: 'Bakkerij',                value: 64,     apples: 6,  rate: 0.25, cost: 1.9e3,  unlock: 2.5e9,     color: 0xc9853e },
-  { id: 'cider', name: 'Appelcider',    machine: 'Brouwerij',               value: 160,    apples: 8,  rate: 0.2,  cost: 4.2e3,  unlock: 4e11,    color: 0xb5d36b },
-  { id: 'syrup', name: 'Appelstroop',   machine: 'Stroopkokerij',           value: 430,    apples: 12, rate: 0.15, cost: 9e3,    unlock: 3.4e12,    color: 0x7a3b1d },
-  { id: 'candy', name: 'Karamelappels', machine: 'Karamelfabriek',          value: 1100,   apples: 15, rate: 0.12, cost: 2e4,    unlock: 7.2e14, color: 0xff6fa8 },
+  { id: 'juice', name: 'Appelsap',      machine: 'Sappers',                 value: 1.1,    apples: 2,  rate: 0.5,  cost: 54,     unlock: 1.8e3,    color: 0xf2c14e },
+  { id: 'sauce', name: 'Appelmoes',     machine: 'Kookketel',               value: 690,    apples: 3,  rate: 0.4,  cost: 1.7e5,  unlock: 5.7e6,  color: 0xf6e7b0 },
+  { id: 'chips', name: 'Appelchips',    machine: 'Droogoven',               value: 2200,   apples: 4,  rate: 0.32, cost: 6.3e5,  unlock: 1.5e7,  color: 0xd9a35b },
+  { id: 'pie',   name: 'Appeltaart',    machine: 'Bakkerij',                value: 7000,   apples: 6,  rate: 0.25, cost: 2.5e6,  unlock: 7.2e7,     color: 0xc9853e },
+  { id: 'cider', name: 'Appelcider',    machine: 'Brouwerij',               value: 3.5e5,  apples: 8,  rate: 0.2,  cost: 2.8e8,  unlock: 8.5e9,   color: 0xb5d36b },
+  { id: 'syrup', name: 'Appelstroop',   machine: 'Stroopkokerij',           value: 1.2e7,  apples: 12, rate: 0.15, cost: 1.7e10, unlock: 3.8e11,    color: 0x7a3b1d },
+  { id: 'candy', name: 'Karamelappels', machine: 'Karamelfabriek',          value: 7.4e8,  apples: 15, rate: 0.12, cost: 2.6e12, unlock: 1.1e14, color: 0xff6fa8 },
 ];
 export const LINE_GROWTH = 1.055;
 
@@ -70,16 +72,16 @@ export const LINE_GROWTH = 1.055;
 // plots = boomgaardpercelen in de 3D-wereld.
 export const TIERS = [
   { name: 'Schuurtje',     cost: 0,      slots: 2, mult: 1,    orchard: 1, chain: 1, plots: 1 },
-  { name: 'Werkplaats',    cost: 3e6,      slots: 3, mult: 1.2,  orchard: 1.5, chain: 3,  plots: 2 },
-  { name: 'Fabriek',       cost: 9.8e7,    slots: 4, mult: 1.2,  orchard: 1.5, chain: 3,  plots: 2 },
-  { name: 'Grote Fabriek', cost: 1.6e9,     slots: 5, mult: 1.3,  orchard: 1.5, chain: 3,  plots: 3 },
-  { name: 'Industriehal',  cost: 3.9e11,    slots: 6, mult: 1.3,  orchard: 1.5, chain: 3,  plots: 3 },
-  { name: 'Megafabriek',   cost: 2.4e12,  slots: 7, mult: 1.4,  orchard: 1.5, chain: 3,  plots: 4 },
-  { name: 'Gigafabriek',   cost: 2.4e14, slots: 8, mult: 1.5,  orchard: 1.5, chain: 3,  plots: 4 },
-  { name: 'Appelcomplex',  cost: 2.4e17, slots: 8, mult: 1.5,    orchard: 1.5, chain: 3,  plots: 5 },
-  { name: 'Appelstad',     cost: 2.4e20, slots: 8, mult: 1.5,    orchard: 1.5, chain: 3,  plots: 5 },
-  { name: 'Appelimperium', cost: 2.4e23, slots: 8, mult: 2,    orchard: 1.5, chain: 3,  plots: 6 },
-  { name: 'Appelplaneet',  cost: 2.4e26, slots: 8, mult: 2,    orchard: 1.5, chain: 3,  plots: 6 },
+  { name: 'Werkplaats',    cost: 9.4e5,    slots: 3, mult: 1.2,  orchard: 1.5, chain: 3,  plots: 2 },
+  { name: 'Fabriek',       cost: 1.5e7,    slots: 4, mult: 1.2,  orchard: 1.5, chain: 3,  plots: 2 },
+  { name: 'Grote Fabriek', cost: 4.7e7,     slots: 5, mult: 1.3,  orchard: 1.5, chain: 3,  plots: 3 },
+  { name: 'Industriehal',  cost: 4.2e9,     slots: 6, mult: 1.3,  orchard: 1.5, chain: 3,  plots: 3 },
+  { name: 'Megafabriek',   cost: 3.7e11,  slots: 7, mult: 1.4,  orchard: 1.5, chain: 3,  plots: 4 },
+  { name: 'Gigafabriek',   cost: 3.7e14, slots: 8, mult: 1.5,  orchard: 1.5, chain: 3,  plots: 4 },
+  { name: 'Appelcomplex',  cost: 3.7e19, slots: 8, mult: 1.5,    orchard: 1.5, chain: 3,  plots: 5 },
+  { name: 'Appelstad',     cost: 3.7e24, slots: 8, mult: 1.5,    orchard: 1.5, chain: 3,  plots: 5 },
+  { name: 'Appelimperium', cost: 3.7e29, slots: 8, mult: 2,    orchard: 1.5, chain: 3,  plots: 6 },
+  { name: 'Appelplaneet',  cost: 3.7e34, slots: 8, mult: 2,    orchard: 1.5, chain: 3,  plots: 6 },
 ];
 
 // Upgrades (eenmalig, zoals het upgrade-menu van Eatventure). Gesorteerd op prijs in het menu.
@@ -118,8 +120,8 @@ export const START_MONEY = 10;
 
 // Investeerders (prestige). Elke investeerder geeft +INVESTOR_BONUS inkomen.
 export const INVESTOR_BONUS = 0.05;
-export const INVESTOR_BASE = 6.5e8;   // totaalverdiensten voor de eerste investeerder
-export const INVESTOR_POWER = 0.25;
+export const INVESTOR_BASE = 1.9e5;   // totaalverdiensten voor de eerste investeerder
+export const INVESTOR_POWER = 0.15;
 
 
 // Gouden appel: verschijnt af en toe in de boomgaard.

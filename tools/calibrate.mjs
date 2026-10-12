@@ -7,7 +7,7 @@ import { LINES, TIERS, GOLDEN } from '../js/config.js';
 import { goalAt, goalProgress, goalReward } from '../js/goals.js';
 import { spend } from './bot.mjs';
 
-const TARGETS = [['line1', 2], ['tier1', 6], ['line2', 8], ['tier2', 12], ['line3', 14], ['tier3', 20], ['line4', 23], ['tier4', 34], ['line5', 38], ['tier5', 52], ['line6', 58]];
+const TARGETS = [['line1', 2], ['tier1', 6], ['line2', 8], ['tier2', 12], ['line3', 14], ['tier3', 20], ['line4', 23], ['tier4', 34], ['line5', 38], ['tier5', 54], ['line6', 58]];
 const setCost = (k, v) => { if (k.startsWith('line')) LINES[+k.slice(4)].unlock = v; else TIERS[+k.slice(4)].cost = v; };
 const getCost = (k) => (k.startsWith('line') ? LINES[+k.slice(4)].unlock : TIERS[+k.slice(4)].cost);
 const BLOCK = 1e300;

@@ -23,7 +23,7 @@ function migrate(d) {
     return base;
   }
   // versie 1 had een heel andere economie: begin opnieuw, maar houd de instellingen (muziek weer aan)
-  if (d.version !== E.SAVE_VERSION && d.version !== 5) {
+  if (d.version !== E.SAVE_VERSION && d.version !== 5 && d.version !== 6) {
     base.settings = { ...base.settings, ...(d.settings || {}), music: true };
     base.migrated = true;
     return base;
@@ -38,8 +38,29 @@ function migrate(d) {
     if (!Number.isFinite(s[k])) s[k] = base[k];
   }
   if (d.version === 5) convertTransport(s);
+  if (d.version <= 6) convertLines(s);
   s.version = E.SAVE_VERSION;
   return s;
+}
+
+// Versie 6 -> 7: een nieuwe machine begint nu laag en groeit geleidelijk; elke lijn heeft een eigen
+// waarde en levelprijs. We rekenen elk level om naar het level dat (ongeveer) evenveel oplevert.
+const OLD_LINE_VALUES = [1, 4, 10, 25, 64, 160, 430, 1100];
+function convertLines(s) {
+  const changed = [];
+  LINES.forEach((l, i) => {
+    const L = s.lines[i];
+    if (L <= 1) return;
+    const old = OLD_LINE_VALUES[i] / l.value * E.lineValue(s, i, L) * E.lineRate(s, i, L);
+    // het level dat het dichtst bij het oude inkomen van deze lijn zit
+    const inc = (x) => E.lineValue(s, i, x) * E.lineRate(s, i, x);
+    let lv = 1;
+    while (lv < 5000 && inc(lv + 1) <= old) lv++;
+    if (lv < 5000 && Math.abs(Math.log(inc(lv + 1) / old)) < Math.abs(Math.log(inc(lv) / old))) lv++;
+    if (lv !== L) changed.push(i);
+    s.lines[i] = lv;
+  });
+  if (changed.length) s.linesConverted = true;
 }
 
 // Versie 5 -> 6: het vervoer groeit nu met kleine stappen (+8% per level) en krijgt geen gratis
@@ -74,7 +95,9 @@ const state = loaded || E.newState();
 const firstVisit = !loaded || state.migrated;
 const upgradedFrom = state.upgradedFrom;
 const transportConverted = state.transportConverted;
+const linesConverted = state.linesConverted;
 delete state.transportConverted;
+delete state.linesConverted;
 delete state.migrated;
 delete state.upgradedFrom;
 // standaard Auto (de prestatieregelaar past de beeldkwaliteit aan het toestel aan);
@@ -292,7 +315,7 @@ state.lastTick = Date.now();
 if (!firstVisit && gap0 > 30) handleGap(gap0);
 if (firstVisit) ui.welcome();
 else if (upgradedFrom) ui.newVersion(upgradedFrom);
-else if (transportConverted) ui.transportNews(transportConverted);
+else if (transportConverted || linesConverted) ui.balanceNews(transportConverted, linesConverted);
 
 let lastFrame = performance.now();
 let renderAcc = 0;

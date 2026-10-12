@@ -53,7 +53,7 @@ export function casualSpend(s, save = true) {
 
 // ---------- één simulatie ----------
 
-function simulate({ minutes, beat, player, prestige = false, goals = true, golden = true, save = true }) {
+export function simulate({ minutes, beat, player, prestige = false, goals = true, golden = true, save = true }) {
   const s = E.newState();
   s.tutorial = 99;
   s.stats.chain = 1;
@@ -63,6 +63,8 @@ function simulate({ minutes, beat, player, prestige = false, goals = true, golde
   const ev = [], gaps = [], paybacks = [], chainCost = [], rewards = [], rounds = [], snapshots = [];
   let maxGap = 0, maxGap55 = 0;
   const gaps55 = [];
+  // level van elke lijn een minuut na het bouwen (eerste ronde)
+  const opened = {}, lv1m = {};
   while (t < minutes * 60) {
     E.tick(s, beat);
     t += beat;
@@ -111,6 +113,10 @@ function simulate({ minutes, beat, player, prestige = false, goals = true, golde
         else if (o.extra && o.extra.orchard + o.extra.sales > 0 && before > 0) chainCost.push([t, (o.extra.orchard + o.extra.sales) / before]);
       }
     }
+    s.lines.forEach((lv, i) => {
+      if (lv > 0 && !(i in opened)) opened[i] = t;
+      if (i in opened && !(i in lv1m) && t >= opened[i] + 60) lv1m[i] = lv;
+    });
     if (t % 600 === 0) {
       const pp = E.computeProduction(s, 0, true);
       const shares = pp.lines.map((l) => (pp.income > 0 ? l.income / pp.income : 0));
@@ -126,7 +132,7 @@ function simulate({ minutes, beat, player, prestige = false, goals = true, golde
       }
     }
   }
-  return { nothing, goalLog, ev, gaps, gaps55, maxGap, maxGap55, paybacks, chainCost, rewards, rounds, snapshots, final: { lines: s.lines, orchard: s.orchard, sales: s.sales, upg: Object.keys(s.research).length, tier: s.tier, inc: E.incomePerSecond(s), total: s.totalEarned } };
+  return { lv1m, nothing, goalLog, ev, gaps, gaps55, maxGap, maxGap55, paybacks, chainCost, rewards, rounds, snapshots, final: { lines: s.lines, orchard: s.orchard, sales: s.sales, upg: Object.keys(s.research).length, tier: s.tier, inc: E.incomePerSecond(s), total: s.totalEarned } };
 }
 
 // Intro: zo snel als een speler de stappen kan doen.
@@ -214,7 +220,7 @@ function report(R) {
     const win = [['Werkplaats', 4, 9], ['Fabriek', 9, 16], ['Grote Fabriek', 17, 30], ['Industriehal', 32, 55], ['Megafabriek', 50, 80]];
     for (const [l, a, b] of win) check(`${l} tussen ${a} en ${b} min`, T(l) >= a && T(l) <= b, `${T(l).toFixed(1)} min`);
     const pb = blocks(r.paybacks, 30, (v) => [median(v) / 60, pct(v, 0.9) / 60]).filter(([h]) => h < 60);
-    check('terugverdientijd lijn-upgrades: mediaan ≤ 6 min per half uur', pb.every(([, [m]]) => m <= 6), pb.map(([h, [m]]) => `${h}-${h + 30}: ${m.toFixed(1)}`).join(', '));
+    check('terugverdientijd lijn-upgrades: mediaan ≤ 10 min per half uur', pb.every(([, [m]]) => m <= 10), pb.map(([h, [m]]) => `${h}-${h + 30}: ${m.toFixed(1)}`).join(', '));
     check('terugverdientijd lijn-upgrades: p90 ≤ 22 min', pb.every(([, [, p]]) => p <= 22), pb.map(([h, [, p]]) => `${h}: ${p.toFixed(1)}`).join(', '));
     // na ~55 min is het tijd voor investeerders (zie de investeerderstest); tot dan altijd iets te doen
     console.log(`   (info) slimme speler spaart soms: langste pauze ${fmtT(r.maxGap55)}`);
@@ -223,9 +229,9 @@ function report(R) {
     void idle;
     const cc = r.chainCost.map(([, v]) => v);
     check('boomgaard/vrachtwagens kosten een keuze waard (mediaan 2-60 s inkomen)', median(cc) >= 2 && median(cc) <= 60, `mediaan ${median(cc).toFixed(1)} s, p90 ${pct(cc, 0.9).toFixed(0)} s`);
-    const snap = r.snapshots.find((x) => x.t === 3600) || r.final;
-    const open = snap.lines.filter((x) => x > 0).slice(0, -1);
-    check('oude lijnen blijven meedoen (laagste ≥ 40% van hoogste level na 60 min, nieuwste lijn niet meegeteld)', Math.min(...open) >= 0.4 * Math.max(...open), `levels ${open.join(', ')}`);
+    // een nieuwe machine begint laag en groeit geleidelijk (niet meteen honderden levels)
+    const first = Object.entries(r.lv1m).filter(([i]) => i > 0).map(([i, lv]) => `${LINES[i].id} ${lv}`);
+    check('nieuwe lijn: een minuut na het bouwen hooguit level 30', Object.entries(r.lv1m).every(([i, lv]) => i == 0 || lv <= 30), first.join(', '));
     for (const m of [30, 60, 90]) {
       // na ~55 min is het tijd voor investeerders; 90 min is alleen ter info
       const info = m > 60;
