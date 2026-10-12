@@ -72,6 +72,18 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 #hud > * { pointer-events: auto; }
 
+/* links: geld met daaronder de ketenbalans in drie balkjes */
+.hud-left { display: flex; flex-direction: column; gap: 6px; }
+.chain-mini {
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--hud); border-radius: 12px; padding: 7px 10px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
+}
+.chain-mini i { display: block; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
+.chain-mini b { display: block; height: 100%; width: 0; border-radius: 3px; transition: width 0.5s ease; }
+.chain-mini .cm-pick b { background: #3fae4d; }
+.chain-mini .cm-mach b { background: #f08a24; }
+.chain-mini .cm-trans b { background: #3d8bef; }
 .money-card {
   display: flex;
   align-items: center;
@@ -511,7 +523,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 #toasts {
   position: fixed;
-  top: calc(76px + var(--safe-t));
+  top: calc(var(--hud-bottom, 76px) + 8px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -522,8 +534,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   pointer-events: none;
   width: min(420px, calc(100% - 20px));
 }
-/* tijdens de intro staan meldingen onder het tutorial-blok, zodat ze de tekst niet bedekken */
-body:has(#tutorial:not(.hidden)) #toasts { top: calc(var(--tut-bottom, 190px) + 8px); }
 .toast {
   background: var(--hud);
   color: #fff;
@@ -593,7 +603,6 @@ body:has(#tutorial:not(.hidden)) #toasts { top: calc(var(--tut-bottom, 190px) + 
 }
 
 @media (max-height: 560px) and (orientation: landscape) {
-  #toasts { top: calc(64px + var(--safe-t)); }
   .sheet { max-height: calc(100vh - 110px); }
 }
 
@@ -601,7 +610,6 @@ body:has(#tutorial:not(.hidden)) #toasts { top: calc(var(--tut-bottom, 190px) + 
 @media (max-width: 760px) {
   .hud-center { order: 3; flex-basis: 100%; max-width: none; }
   .goal { max-width: none; min-height: 40px; }
-  #toasts { top: calc(124px + var(--safe-t)); }
 }
 
 /* ---------- Ketenbalans ---------- */
@@ -672,7 +680,6 @@ body:has(#tutorial:not(.hidden)) #toasts { top: calc(var(--tut-bottom, 190px) + 
   }
   .goal.done:not(.open) #goal-claim:active { transform: translateY(calc(-50% + 2px)); box-shadow: 0 1px 0 var(--green-d); }
   .goal.open { position: fixed; left: 10px; right: 10px; top: calc(66px + var(--safe-t)); max-width: none; z-index: 15; animation: pop 0.2s ease-out; }
-  #toasts { top: calc(70px + var(--safe-t)); }
 }
 
 /* ---------- Stationkaart (Eatventure-stijl) ---------- */
@@ -711,7 +718,13 @@ body:has(#tutorial:not(.hidden)) #toasts { top: calc(var(--tut-bottom, 190px) + 
 
 .card.upg { padding: 8px 8px 8px 10px; }
 .card.upg.can { border-color: #9fcbff; background: #f4f9ff; }
-.upg-ic { font-size: 30px; width: 36px; display: grid; place-items: center; }
+.upg-ic { font-size: 30px; width: 40px; display: grid; place-items: center; position: relative; }
+.upg-type { position: absolute; right: -4px; bottom: -4px; width: 19px; height: 19px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 700; color: #fff; border: 2px solid #fff; }
+.upg-type.price { background: var(--green); }
+.upg-type.speed { background: var(--blue); }
+.upg-type .ic { font-size: 11px; }
+.card.upg .card-text b { font-size: 16.5px; }
+.card.upg .card-text small { font-size: 12.5px; }
 .card.upg .btn { min-width: 92px; padding: 10px 10px; font-size: 15px; }
 .gain { color: var(--green-d); font-weight: 700; }
 

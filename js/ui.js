@@ -36,6 +36,8 @@ export class UI {
     }));
     $('#btn-investors').addEventListener('click', () => { sfx.click(); this.open('investors'); });
     $('#btn-settings').addEventListener('click', () => { sfx.click(); this.open('settings'); });
+    this.el.chainMini = $('#chain-mini');
+    this.el.chainMini.addEventListener('click', () => { sfx.click(); this.open('chain'); });
     this.el.goalClaim.addEventListener('click', () => this.game.claimGoal());
     this.el.tut = $('#tutorial');
     this.el.tutText = $('#tut-text');
@@ -429,22 +431,14 @@ export class UI {
         const owned = UPGRADES.filter((u) => s.research[u.id]).length;
         let html = '';
         if (avail.length === 0 && locked.length === 0) html += '<div class="tip">Alle upgrades gekocht!</div>';
-        const base = E.incomePerSecond(s);
-        html += avail.slice(0, 8).map((u) => {
+        else if (avail.length === 0) html += '<div class="tip">Nieuwe upgrades komen met je volgende productielijn.</div>';
+        // simpel: wat het doet (groot), de naam (klein) en de prijs op de knop
+        html += avail.slice(0, 6).map((u) => {
           const can = s.money >= u.cost;
-          const c = structuredClone(s);
-          c.research[u.id] = true;
-          const gain = E.incomePerSecond(c) - base;
-          const note = gain > 0 ? `<span class="gain">+${money(gain * 60)}/min</span>`
-            : u.type === 'speed' && u.target !== 'orchard' && u.target !== 'transport' ? '<span class="warn-text">vraagt meer appels en vrachtwagens</span>'
-            : '<span class="muted">nu nog niet nodig</span>';
-          return `<div class="card upg ${can ? 'can' : ''}"><span class="upg-ic">${this.upgradeIcon(u)}</span>
-            <div class="card-text"><b>${u.name}</b><small>${this.upgradeDesc(u)}</small><small>${note}</small></div>
+          const type = u.type === 'speed' ? `<i class="upg-type speed">${icon('bolt')}</i>` : `<i class="upg-type price">€</i>`;
+          return `<div class="card upg ${can ? 'can' : ''}"><span class="upg-ic">${this.upgradeIcon(u)}${type}</span>
+            <div class="card-text"><b>${this.upgradeDesc(u)}</b><small>${u.name}</small></div>
             <button class="btn blue ${can ? '' : 'disabled'}" data-action="research" data-id="${u.id}">${money(u.cost)}</button></div>`;
-        }).join('');
-        html += locked.slice(0, 2).map((u) => {
-          const line = LINES.find((l) => l.id === u.req);
-          return `<div class="card upg dim"><span class="upg-ic">${icon('lock')}</span><div class="card-text"><b>${u.name}</b><small>${this.upgradeDesc(u)} · na ${line.name}</small></div><span class="price">${money(u.cost)}</span></div>`;
         }).join('');
         return { title: 'Upgrades', sub: `${owned} van ${UPGRADES.length} gekocht`, html };
       },
@@ -666,6 +660,10 @@ export class UI {
       if (tutorialDone(s)) this.updateGoal(prod.income);
       this.updateBadges();
       this.updateVisibility();
+      this.updateChainMini();
+      // meldingen komen net onder de HUD (die is hoger tijdens de intro of met de ketenbalkjes)
+      const hb = Math.round(document.querySelector('#hud').getBoundingClientRect().bottom);
+      if (hb !== this.hudBottom) { this.hudBottom = hb; document.body.style.setProperty('--hud-bottom', `${hb}px`); }
       this.refresh();
       this.updateLabelContent();
     }
@@ -733,10 +731,6 @@ export class UI {
     el.classList.add('tut-in');
     this.tutTarget = step.target ? JSON.stringify(step.target) : null;
     if (step.target) this.game.world.focus(step.target);
-    requestAnimationFrame(() => {
-      const r = el.getBoundingClientRect();
-      if (r.height) document.body.style.setProperty('--tut-bottom', `${Math.round(r.bottom)}px`);
-    });
   }
 
   updateTutorial() {
@@ -751,6 +745,18 @@ export class UI {
     if (this.tutShown !== s.tutorial) { this.showTutStep(); return; }
     const step = TUTORIAL[s.tutorial];
     if (step.done && step.done(s) && performance.now() - this.tutSince >= this.tutMin) this.finishTutStep(true);
+  }
+
+  // Drie balkjes onder het geld: plukken (groen), verwerken (oranje) en vervoeren (blauw).
+  updateChainMini() {
+    const s = this.state;
+    const on = s.lines.some((x) => x > 0) && tutorialDone(s);
+    this.el.chainMini.classList.toggle('hidden', !on);
+    if (!on) return;
+    const c = E.chainBalance(s);
+    const max = Math.max(c.pick, c.machines, c.transport, 1e-9);
+    const bars = this.el.chainMini.querySelectorAll('b');
+    [c.pick, c.machines, c.transport].forEach((v, k) => { bars[k].style.width = `${Math.max(4, Math.round((v / max) * 100))}%`; });
   }
 
   // Knoppen pas tonen als ze nodig zijn, zodat het begin overzichtelijk blijft.

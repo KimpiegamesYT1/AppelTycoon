@@ -19,24 +19,24 @@
   <script type="importmap">
   {
     "imports": {
-      "./js/audio.js": "./js/audio.js?v=395d9dc4b1",
-      "./js/config.js": "./js/config.js?v=395d9dc4b1",
-      "./js/economy.js": "./js/economy.js?v=395d9dc4b1",
-      "./js/format.js": "./js/format.js?v=395d9dc4b1",
-      "./js/goals.js": "./js/goals.js?v=395d9dc4b1",
-      "./js/icons.js": "./js/icons.js?v=395d9dc4b1",
-      "./js/main.js": "./js/main.js?v=395d9dc4b1",
-      "./js/models.js": "./js/models.js?v=395d9dc4b1",
-      "./js/tutorial.js": "./js/tutorial.js?v=395d9dc4b1",
-      "./js/ui.js": "./js/ui.js?v=395d9dc4b1",
-      "./js/world.js": "./js/world.js?v=395d9dc4b1",
-      "./vendor/three.module.min.js": "./vendor/three.module.min.js?v=395d9dc4b1"
+      "./js/audio.js": "./js/audio.js?v=f2fcaf521f",
+      "./js/config.js": "./js/config.js?v=f2fcaf521f",
+      "./js/economy.js": "./js/economy.js?v=f2fcaf521f",
+      "./js/format.js": "./js/format.js?v=f2fcaf521f",
+      "./js/goals.js": "./js/goals.js?v=f2fcaf521f",
+      "./js/icons.js": "./js/icons.js?v=f2fcaf521f",
+      "./js/main.js": "./js/main.js?v=f2fcaf521f",
+      "./js/models.js": "./js/models.js?v=f2fcaf521f",
+      "./js/tutorial.js": "./js/tutorial.js?v=f2fcaf521f",
+      "./js/ui.js": "./js/ui.js?v=f2fcaf521f",
+      "./js/world.js": "./js/world.js?v=f2fcaf521f",
+      "./vendor/three.module.min.js": "./vendor/three.module.min.js?v=f2fcaf521f"
     }
   }
   </script>
-  <script>window.APP_VERSION = '395d9dc4b1';</script>
+  <script>window.APP_VERSION = 'f2fcaf521f';</script>
   <!-- versie:end -->
-  <link rel="stylesheet" href="css/style.css?v=395d9dc4b1">
+  <link rel="stylesheet" href="css/style.css?v=f2fcaf521f">
 </head>
 <body>
   <canvas id="scene"></canvas>
@@ -44,12 +44,17 @@
   <div id="fx"></div>
 
   <header id="hud">
-    <div class="money-card">
-      <div class="coin">€</div>
-      <div>
-        <div id="money" class="money">€0</div>
-        <div id="income" class="income">+€0/s</div>
+    <div class="hud-left">
+      <div class="money-card">
+        <div class="coin">€</div>
+        <div>
+          <div id="money" class="money">€0</div>
+          <div id="income" class="income">+€0/s</div>
+        </div>
       </div>
+      <button id="chain-mini" class="chain-mini hidden" aria-label="Ketenbalans">
+        <i class="cm-pick"><b></b></i><i class="cm-mach"><b></b></i><i class="cm-trans"><b></b></i>
+      </button>
     </div>
     <div class="hud-center">
       <div id="goal" class="goal">
@@ -91,6 +96,6 @@
     <small>fabriek wordt gebouwd…</small>
   </div>
 
-  <script type="module" src="js/main.js?v=395d9dc4b1"></script>
+  <script type="module" src="js/main.js?v=f2fcaf521f"></script>
 </body>
 </html>
