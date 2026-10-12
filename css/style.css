@@ -528,13 +528,13 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .sp-ic { font-size: 28px; width: 36px; text-align: center; }
 .sp-other { width: 30px; height: 30px; }
 .sp-other .ava { width: 100%; height: 100%; }
-.staff-strip { display: flex; align-items: center; gap: 10px; width: 100%; background: #f4f9ff; border: 2px solid #cfe3ff; border-radius: 16px; padding: 7px 9px; margin-top: 10px; text-align: left; }
-.staff-strip .sc-ava { width: 44px; height: 44px; }
-.staff-strip .sc-main > b small { margin-left: 4px; }
+.staff-strip { display: flex; align-items: center; gap: 7px; width: 100%; background: #f4f9ff; border: 2px solid #cfe3ff; border-radius: 14px; padding: 4px 6px; margin-top: 8px; text-align: left; min-height: 44px; }
+.staff-strip .sc-ava { width: 32px; height: 32px; }
+.staff-strip > b { font-size: 15px; }
+.staff-strip .ss-right { margin-left: auto; font-size: 14px; }
+.staff-strip .ss-right .btn { padding: 5px 10px; }
 .staff-strip.st-active { background: #effaf0; border-color: #bfe8c3; }
 .staff-strip.st-ready { background: #fffaf0; border-color: #ffc98f; }
-.staff-strip.empty { background: #fff; border-style: dashed; }
-.staff-strip.empty .sc-main small { color: var(--ink-soft); font-size: 12.5px; }
 
 .inv-hero { display: flex; align-items: center; gap: 14px; font-size: 20px; }
 .inv-hero .star { font-size: 52px; animation: bob 1.4s infinite; }
@@ -870,3 +870,16 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 #btn-settings { position: relative; }
 #btn-settings.has-update::after { content: ''; position: absolute; top: 6px; right: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px #fff; }
 .list-row.update-ready { border-color: var(--green); background: #eaffdf; }
+
+/* Bordjes die elkaar in de weg zitten (of als je ver uitzoomt): klein rondje met alleen het icoon;
+   past zelfs dat niet, dan vervaagt het bordje tot je weer inzoomt. */
+.label { transition: opacity 0.2s; }
+.label.crowded { opacity: 0; pointer-events: none; }
+.label.compact { padding: 3px; gap: 0; border-radius: 50%; min-width: 30px; min-height: 30px; justify-content: center; }
+.label.compact .lb-lv, .label.compact .lb-bar, .label.compact .lb-txt, .label.compact .lb-star { display: none; }
+.label.compact .lb-icon { font-size: 20px; display: grid; }
+.label.compact .up { position: absolute; top: -7px; right: -8px; width: 17px; height: 17px; font-size: 10px; animation: none; }
+.label.compact .warn-dot { position: absolute; top: -7px; left: -8px; width: 16px; height: 16px; font-size: 10px; }
+.label.compact .lb-full { position: absolute; top: -6px; left: -7px; width: 14px; height: 14px; border-radius: 50%; background: var(--red); font-size: 0; border: 2px solid #fff; }
+.label.compact::after { bottom: -7px; border-width: 5px; }
+.label-tier.compact, .label-unlock.compact { padding: 4px; }

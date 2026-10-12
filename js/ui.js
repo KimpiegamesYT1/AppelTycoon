@@ -374,24 +374,20 @@ export class UI {
     };
   }
 
-  // Superwerknemer bij dit station (of een knop om er een te plaatsen).
+  // Superwerknemer bij dit station: één smalle regel. Staat er niemand, dan tonen we niets
+  // (plaatsen gaat via het Kantoor), zodat de kaart compact blijft.
   staffStrip(st) {
     const s = this.state;
-    if (!tutorialDone(s)) return '';
-    const staff = E.ensureStaff(s);
     const id = E.staffAt(s, st.kind, st.i || 0);
-    if (id) {
-      const e = E.staffDef(id);
-      const info = this.staffState(staff.hired[id], false);
-      const right = info.st === 'ready' ? `<span class="btn small gold pulse">${icon('bolt')} Start</span>` : '';
-      return `<button class="staff-strip st-${info.st}" data-action="${info.st === 'ready' ? 'staff-start' : 'staff-for'}" data-id="${id}" data-st='${JSON.stringify(st)}'>
-        <span class="sc-ava">${avatar(e)}</span><span class="sc-main"><b>${e.name} <small>${skillTags(e)}</small></b><span class="sc-status">${info.html}</span></span>${right}</button>`;
-    }
-    const can = Object.keys(staff.hired).some((k) => E.staffCanWork(E.staffDef(k), st));
-    const hireable = STAFF.list.some((e) => !staff.hired[e.id] && E.staffUnlocked(s, e) && staff.points >= e.cost);
-    if (!can && !hireable) return '';
-    return `<button class="staff-strip empty" data-action="${can ? 'staff-for' : 'open'}" data-v="office" data-st='${JSON.stringify(st)}'>
-      <span class="sc-ava add">${icon('briefcase')}</span><span class="sc-main"><b>${can ? 'Superwerknemer plaatsen' : 'Huur een superwerknemer'}</b><small>${can ? 'Sneller of meer waard, 3 minuten lang' : 'In het Kantoor, met je punten'}</small></span></button>`;
+    if (!id) return '';
+    const e = E.staffDef(id);
+    const r = s.staff.hired[id];
+    const status = E.staffStatus(r);
+    const right = status === 'ready' ? `<span class="btn small gold pulse">${icon('bolt')} Start</span>`
+      : status === 'active' ? `<span class="ss ss-active">${icon('bolt')}<b data-until="${r.until}"></b></span>`
+        : `<span class="ss ss-rest">${icon('zzz')}<b data-until="${r.rest}"></b></span>`;
+    return `<button class="staff-strip st-${status}" data-action="${status === 'ready' ? 'staff-start' : 'staff-for'}" data-id="${id}" data-st='${JSON.stringify(st)}'>
+      <span class="sc-ava">${avatar(e)}</span><b>${e.name}</b>${skillTags(e)}<span class="ss-right">${right}</span></button>`;
   }
 
   // De machine die nu het goedkoopst een level omhoog kan (voor 'Machines'-knoppen).
@@ -1092,11 +1088,13 @@ export class UI {
 
   // ---------- Labels boven stations ----------
 
-  updateLabels() {
+  updateLabels(now = 0) {
     const w = this.game.world;
     const anchors = w.anchors(this.state);
     const keys = new Set();
     const zoomedOut = w.viewSize > 75;
+    const items = [];
+    let changed = false;
     for (const a of anchors) {
       keys.add(a.key);
       let el = this.labels.get(a.key);
@@ -1108,9 +1106,10 @@ export class UI {
         this.labels.set(a.key, el);
         el._st = a.st;
         this.fillLabel(el);
+        changed = true;
       }
       const stJson = JSON.stringify(a.st);
-      if (el.dataset.st !== stJson) { el.dataset.st = stJson; el._st = a.st; this.fillLabel(el); }
+      if (el.dataset.st !== stJson) { el.dataset.st = stJson; el._st = a.st; this.fillLabel(el); changed = true; }
       const p = w.toScreen(a.pos);
       if (a.st.kind === 'golden') {
         const m = 44;
@@ -1123,16 +1122,60 @@ export class UI {
         // pijltje wijst naar waar de gouden appel echt zit (het label zelf staat aan de rand)
         if (out) el.style.setProperty('--a', `${Math.atan2(ay - (p.y - 21), ax - p.x).toFixed(2)}rad`);
       }
-      const hide = !p.visible || (zoomedOut && (a.st.kind === 'line' || (a.st.kind === 'staff' && !el.classList.contains('staff-ready'))));
+      const hide = !p.visible || (zoomedOut && a.st.kind === 'line')
+        || (a.st.kind === 'staff' && w.viewSize > 46 && !el.classList.contains('staff-ready'));
       // alleen de DOM aanraken als er echt iets verandert (scheelt veel werk als de camera stilstaat)
-      if (el._hide !== hide) { el._hide = hide; el.style.display = hide ? 'none' : ''; }
+      if (el._hide !== hide) { el._hide = hide; el.style.display = hide ? 'none' : ''; changed = true; }
       if (hide) continue;
+      items.push({ el, st: a.st, x: p.x, y: p.y });
       const tf = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
       if (el._tf !== tf) { el._tf = tf; el.style.transform = tf; }
     }
     for (const [k, el] of this.labels) {
-      if (!keys.has(k)) { el.remove(); this.labels.delete(k); }
+      if (!keys.has(k)) { el.remove(); this.labels.delete(k); changed = true; }
     }
+    // bordjes uit elkaar houden: opnieuw als je zoomt, als er iets bijkomt, en anders twee keer per seconde
+    if (changed || w.viewSize !== this.declutterZoom || now - (this.declutterAt || 0) > 500) {
+      this.declutterZoom = w.viewSize;
+      this.declutterAt = now;
+      this.declutter(items, w.viewSize);
+    }
+  }
+
+  // Bordjes die over elkaar vallen: het belangrijkste blijft heel, de rest wordt een klein rondje
+  // (icoon met pijltje) en als zelfs dat niet past verdwijnt hij tot je inzoomt.
+  // Verder uitgezoomd zijn de gewone bordjes altijd klein.
+  declutter(items, zoom) {
+    const tut = this.tutTarget;
+    const prio = (it) => {
+      const k = it.st.kind;
+      if (it.el.dataset.st === tut) return 100;
+      if (k === 'staff') return it.el.classList.contains('staff-ready') ? 80 : -1;
+      return { golden: -1, tier: 70, unlock: 65, orchard: 60, sales: 60, office: 55, dock: 40 }[k] ?? (it.el.classList.contains('can') ? 52 : 50);
+    };
+    const compactZoom = zoom > 46;
+    // eerst alles op ware grootte meten (in één keer, dan rekent de browser maar één keer)
+    for (const it of items) {
+      it.p = prio(it);
+      if (it.p < 0) continue;
+      it.el.classList.remove('compact');
+    }
+    for (const it of items) if (it.p >= 0) { it.w = it.el.offsetWidth; it.h = it.el.offsetHeight; }
+    const placed = [];
+    const hits = (r) => placed.some((q) => r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0);
+    const rect = (it, w, h, pad = 2) => ({ x0: it.x - w / 2 - pad, x1: it.x + w / 2 + pad, y0: it.y - h - pad, y1: it.y + pad });
+    // een rondje mag een klein beetje over een ander heen vallen (het pijltje steekt eruit)
+    const small = 24;
+    items.filter((it) => it.p >= 0).sort((a, b) => b.p - a.p || a.y - b.y).forEach((it) => {
+      const canShrink = it.p < 70;
+      let compact = compactZoom && canShrink;
+      let r = compact ? rect(it, small, small, 0) : rect(it, it.w, it.h);
+      if (hits(r) && canShrink && !compact) { compact = true; r = rect(it, small, small, 0); }
+      const hide = hits(r) && it.p < 70;
+      it.el.classList.toggle('compact', compact);
+      it.el.classList.toggle('crowded', hide);
+      if (!hide) placed.push(r);
+    });
   }
 
   updateLabelContent() {
@@ -1165,19 +1208,19 @@ export class UI {
     } else if (st.kind === 'unlock') {
       const l = LINES[st.i];
       can = s.money >= l.unlock;
-      html = `<span class="lb-icon">${glyph(l.id)}</span><span>${l.name}<br><b>${money(l.unlock)}</b></span>`;
+      html = `<span class="lb-icon">${glyph(l.id)}</span><span class="lb-txt">${l.name}<br><b>${money(l.unlock)}</b></span>`;
     } else if (st.kind === 'tier') {
       const t = E.nextTier(s);
       if (!t) return;
       can = s.money >= t.cost;
-      html = `<span class="lb-icon tier-ic">${icon('expand')}</span><span>${t.name}<br><b>${money(t.cost)}</b></span>`;
+      html = `<span class="lb-icon tier-ic">${icon('expand')}</span><span class="lb-txt">${t.name}<br><b>${money(t.cost)}</b></span>`;
     } else if (st.kind === 'dock') {
-      html = `<span class="lb-icon">${glyph('sales')}</span><span>Nieuwe laadplek<br><b>level ${st.level}</b></span>`;
+      html = `<span class="lb-icon">${glyph('sales')}</span><span class="lb-txt">Nieuwe laadplek<br><b>level ${st.level}</b></span>`;
     } else if (st.kind === 'golden') {
       html = `<i class="gold-arrow"></i><span class="lb-icon">${glyph('gold')}</span>`;
     } else if (st.kind === 'office') {
       const n = this.officeAlerts();
-      html = `<span class="lb-icon office-ic">${icon('briefcase')}</span><span>Kantoor</span>${n ? `<span class="up">${n}</span>` : ''}`;
+      html = `<span class="lb-icon office-ic">${icon('briefcase')}</span><span class="lb-txt">Kantoor</span>${n ? `<span class="up">${n}</span>` : ''}`;
     } else if (st.kind === 'staff') {
       const r = s.staff.hired[st.id];
       const e = E.staffDef(st.id);
