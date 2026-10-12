@@ -592,6 +592,7 @@ export class UI {
       render: () => {
         const s = this.state;
         const staff = E.ensureStaff(s);
+        this.markOfficeSeen();
         const d = this.panel.data || {};
         const pts = staff.points;
         const sub = `<span class="pts-pill">${icon('star')}${pts} ${pts === 1 ? 'punt' : 'punten'}</span>`;
@@ -1051,18 +1052,23 @@ export class UI {
     this.float(p.x, p.y, '+' + money(amount), 'cash');
   }
 
-  // Iets te doen in het kantoor: uitgeruste werknemers, iemand zonder plek, of genoeg punten om te huren.
-  officeAlerts() {
+  // Werknemers die je nu kunt huren (vrijgespeeld en genoeg punten).
+  hireableStaff() {
     const s = this.state;
     const staff = E.ensureStaff(s);
-    const now = Date.now();
-    let n = 0;
-    for (const id in staff.hired) {
-      const r = staff.hired[id];
-      if (!r.at || E.staffStatus(r, now) === 'ready') n++;
-    }
-    if (n) return n;
-    return STAFF.list.some((e) => !staff.hired[e.id] && E.staffUnlocked(s, e) && staff.points >= e.cost) ? '!' : 0;
+    return STAFF.list.filter((e) => !staff.hired[e.id] && E.staffUnlocked(s, e) && staff.points >= e.cost);
+  }
+
+  // Uitroepteken op het kantoor alleen als er een nieuwe werknemer te huur is die je nog niet
+  // gezien hebt; het verdwijnt zodra je het kantoor opent.
+  officeAlerts() {
+    const seen = this.state.stats.officeSeen || [];
+    return this.hireableStaff().some((e) => !seen.includes(e.id)) ? '!' : 0;
+  }
+
+  markOfficeSeen() {
+    const st = this.state.stats;
+    st.officeSeen = [...new Set([...(st.officeSeen || []), ...this.hireableStaff().map((e) => e.id)])];
   }
 
   updateBadges() {
