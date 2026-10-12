@@ -31,7 +31,8 @@ Je begint met een schuurtje, een paar appelbomen en één bezorgscooter. Een kor
 - **Upgrades-menu** – 38 eenmalige upgrades (prijs x2/x3, snelheid x2, boomgaard, vrachtwagens, alle prijzen), goedkoopste eerst, zoals het upgrade-menu van Eatventure. Rode pijltjes boven stations en een rood getal op de knop laten zien wat je kunt kopen.
 - **Ketenbalans** – staven en een grafiek van plukken, verwerken en vervoeren (alles in appels per seconde).
 - De banden vormen één netwerk (toevoerband → lijnen → verzamelband → magazijn). Loopt het magazijn vol, dan hopen producten zich zichtbaar op tot aan de machines.
-- **Uitbreidingen** – 11 fabrieksformaten, van Schuurtje tot Appelplaneet.
+- **Uitbreidingen** – 11 fabrieksformaten, van Schuurtje tot Appelplaneet. Het menu toont de volgende hal met een tekening, wat hij oplevert, een spaarbalk en de hele route.
+- **Kantoor met superwerknemers** – elke productielijn die je opent levert 1 kantoorpunt op (ook in latere rondes). Met punten huur je werknemers (Kees de Monteur tot Opa Appel de Legende); hoe beter, hoe duurder, en nieuwe verschijnen naarmate je verder komt. Je zet ze zelf bij een machine (snelheid- of prijsbonus), of bij de boomgaard of het vervoer (snelheid). Ze lopen daar rond, werken 3 minuten, rusten 5 minuten en worden weer aan het werk gezet door erop te tikken. Bij een investeerdersronde blijven ze, maar gaan terug naar het kantoor.
 - **Investeerders (prestige)**, **gouden appels**, **doelen** en **offline-inkomen** (50%, max 4 uur).
 
 Bediening: slepen om te bewegen, scrollen/knijpen om te zoomen, tikken op een station of label om te upgraden. Houd de upgradeknop ingedrukt om snel achter elkaar te kopen.

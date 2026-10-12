@@ -131,3 +131,26 @@ export const BELT_GOLD = { minDelay: 45, maxDelay: 90, mult: 5 };
 
 // Offline-inkomen.
 export const OFFLINE = { maxHours: 4, rate: 0.5 };
+
+// Kantoor: superwerknemers. Elke productielijn die je opent levert 1 punt op (ook in latere rondes);
+// met punten huur je werknemers. Je zet ze zelf bij een machine (of de boomgaard / het vervoer).
+// Na het starten werken ze `active` seconden, daarna rusten ze `rest` seconden; dan tik je ze weer aan.
+// speed = snelheid x (machine, boomgaard of vervoer), price = prijs x (alleen machines).
+// tier = vanaf welke uitbreiding (ooit bereikt) ze in het kantoor verschijnen.
+export const STAFF = {
+  active: 180,
+  rest: 300,
+  list: [
+    { id: 'kees',   name: 'Kees',      role: 'Monteur',      speed: 2,             cost: 1,  tier: 0,  shirt: '#3d8bef', hair: '#6b4a2b' },
+    { id: 'sanne',  name: 'Sanne',     role: 'Verkoopster',  price: 2,             cost: 2,  tier: 1,  shirt: '#ef5350', hair: '#e8b04a' },
+    { id: 'mo',     name: 'Mo',        role: 'Techneut',     speed: 3,             cost: 3,  tier: 2,  shirt: '#26a69a', hair: '#2b2f3a' },
+    { id: 'lotte',  name: 'Lotte',     role: 'Marketeer',    price: 3,             cost: 4,  tier: 3,  shirt: '#ab47bc', hair: '#a0522d' },
+    { id: 'bram',   name: 'Bram',      role: 'Ploegbaas',    speed: 2, price: 2,   cost: 6,  tier: 4,  shirt: '#ff9a3c', hair: '#3b2a1e' },
+    { id: 'fatima', name: 'Fatima',    role: 'Ingenieur',    speed: 4,             cost: 8,  tier: 5,  shirt: '#5c6bc0', hair: '#1f1a17' },
+    { id: 'daan',   name: 'Daan',      role: 'Topverkoper',  price: 4,             cost: 10, tier: 6,  shirt: '#2e7d32', hair: '#d9a35b' },
+    { id: 'noor',   name: 'Noor',      role: 'Directeur',    speed: 3, price: 3,   cost: 14, tier: 7,  shirt: '#37474f', hair: '#7a3b1d' },
+    { id: 'ruben',  name: 'Ruben',     role: 'Robotexpert',  speed: 6,             cost: 18, tier: 8,  shirt: '#00acc1', hair: '#c0c0c0' },
+    { id: 'eva',    name: 'Eva',       role: 'Appelmagnaat', price: 6,             cost: 22, tier: 9,  shirt: '#d81b60', hair: '#ffd54f' },
+    { id: 'opa',    name: 'Opa Appel', role: 'Legende',      speed: 5, price: 5,   cost: 30, tier: 10, shirt: '#ffc928', hair: '#eeeeee' },
+  ],
+};

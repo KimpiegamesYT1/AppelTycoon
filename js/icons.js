@@ -21,6 +21,8 @@ const LINE = {
   volume: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>',
   music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   chart: '<path d="M4 20V4M4 20h16"/><path d="M8 16v-5M12 16V8M16 16v-3"/>',
+  briefcase: '<rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 12.5h18M11 12.5v2h2v-2"/>',
+  zzz: '<path d="M4 9h5l-5 6h5M13 5h4l-4 5h4M17 14h3l-3 4h3"/>',
   medal: '<circle cx="12" cy="15" r="6"/><path d="M8.5 10 6 3h4l2 5 2-5h4l-2.5 7"/>',
 };
 
@@ -58,4 +60,18 @@ export function stationGlyph(st, lines) {
   if (st.kind === 'orchard') return glyph('orchard');
   if (st.kind === 'sales') return glyph('sales');
   return glyph(lines[st.i].id);
+}
+
+// Gezichtje van een superwerknemer (haar en shirt in eigen kleur). locked = grijs silhouet.
+export function avatar(e, locked = false) {
+  const shirt = locked ? '#c9c2b5' : e.shirt;
+  const hair = locked ? '#b4ad9f' : e.hair;
+  const skin = locked ? '#d8d1c4' : '#f2c49b';
+  const bg = locked ? '#ece5d8' : '#fff4d6';
+  const face = locked ? '' : '<circle cx="15.5" cy="17" r="1.1" fill="#2b2f3a"/><circle cx="24.5" cy="17" r="1.1" fill="#2b2f3a"/><path d="M16.5 21.5q3.5 2.6 7 0" stroke="#2b2f3a" stroke-width="1.3" fill="none" stroke-linecap="round"/>';
+  const star = locked ? '' : '<path d="m25.5 30.2.9 1.8 2 .3-1.4 1.4.3 2-1.8-.9-1.8.9.3-2-1.4-1.4 2-.3z" fill="#ffc928"/>';
+  return `<svg class="ava" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="20" fill="${bg}"/>`
+    + `<path d="M6 40c0-8 6-12 14-12s14 4 14 12z" fill="${shirt}"/>${star}`
+    + `<circle cx="20" cy="17" r="8.5" fill="${skin}"/>`
+    + `<path d="M11.3 16.5c0-6 3.8-9 8.7-9s8.7 3 8.7 9c-1.5-2.6-4.5-4.2-8.7-4.2s-7.2 1.6-8.7 4.2z" fill="${hair}"/>${face}</svg>`;
 }

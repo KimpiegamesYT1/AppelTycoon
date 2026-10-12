@@ -1499,3 +1499,87 @@ export function solarPanel() {
   b.box(2.2, 0.08, 1.4, 0x2d4f8a, 0, 0.8, 0, 0, -0.35, 0);
   return b.mesh();
 }
+
+// ---------- Kantoor en superwerknemers ----------
+
+// Superwerknemer: eigen shirtkleur en haar, met een gouden ster op de borst.
+export function staffPerson(shirt, hair) {
+  const b = new Builder();
+  b.cyl(0.24, 0.5, 0x2b2f3a, 0, 0, 0, { seg: 8 });
+  b.cyl(0.27, 0.45, shirt, 0, 0.45, 0, { seg: 8, top: 0.85 });
+  b.box(0.12, 0.12, 0.06, C.appleGold, 0.09, 0.68, 0.22);
+  b.sphere(0.22, C.skin, 0, 1.12, 0);
+  b.sphere(0.235, hair, 0, 1.17, -0.03, { sy: 0.75 });
+  const g = new THREE.Group();
+  const body = b.mesh();
+  g.add(body);
+  g.userData.body = body;
+  return g;
+}
+
+// Bordje met tekst (canvas), bijvoorbeeld "KANTOOR" boven de deur.
+function textSign(text, w, h, bg = '#2b2f3a', fg = '#ffffff') {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = Math.round(256 * h / w);
+  const g = c.getContext('2d');
+  const draw = () => {
+    g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = fg;
+    g.font = `600 ${Math.round(c.height * 0.62)}px Fredoka, 'Trebuchet MS', sans-serif`;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(text, c.width / 2, c.height / 2 + 2);
+  };
+  draw();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  // het lettertype kan nog aan het laden zijn: daarna opnieuw tekenen
+  if (document.fonts) document.fonts.ready.then(() => { draw(); tex.needsUpdate = true; });
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex }));
+}
+
+// Het kantoor: twee verdiepingen met veel glas, een luifel, een appel op het dak en een vlag.
+// Voorkant is lokale +z.
+export function officeBuilding() {
+  const g = new THREE.Group();
+  const b = new Builder();
+  b.box(8, 0.15, 6.4, C.concrete, 0, 0, 0.4);
+  b.box(2.2, 0.16, 1.6, 0xe8e2d6, 0, 0, 3.0);
+  // gebouw
+  b.box(6.4, 3.6, 4.4, 0xf7f3ea, 0, 0.15, 0);
+  b.box(6.6, 0.25, 4.6, 0x3d7bd9, 0, 1.85, 0);
+  b.box(6.7, 0.35, 4.7, 0x2b2f3a, 0, 3.75, 0);
+  // ramen voor en opzij
+  for (const x of [-2.2, -1.1, 1.1, 2.2]) b.box(0.85, 1.0, 0.06, C.glass, x, 0.65, 2.21);
+  for (const x of [-2.2, -1.1, 0, 1.1, 2.2]) b.box(0.85, 1.0, 0.06, C.glass, x, 2.4, 2.21);
+  for (const z of [-1.2, 0, 1.2]) for (const y of [0.65, 2.4]) b.box(0.06, 1.0, 0.85, C.glass, 3.21, y, z);
+  // glazen deur met luifel
+  b.box(1.1, 1.45, 0.08, 0x6fc3f0, 0, 0.15, 2.22);
+  b.box(0.06, 1.45, 0.1, 0xdfe3e8, 0, 0.15, 2.25);
+  b.box(1.9, 0.12, 1.0, 0xff9a3c, 0, 1.68, 2.65);
+  // planten bij de deur
+  for (const x of [-1.05, 1.05]) {
+    b.cyl(0.22, 0.4, 0x9c6a3c, x, 0.15, 2.75, { seg: 7, top: 1.2 });
+    b.ico(0.32, C.leaf, x, 0.75, 2.75, { detail: 0 });
+  }
+  // dak: airco en een grote appel
+  b.box(1.1, 0.6, 0.9, C.metal, -1.9, 4.1, -0.9);
+  b.cyl(0.5, 0.25, C.metalDark, -0.5, 4.1, -1.2, { seg: 10 });
+  b.cyl(0.08, 0.6, C.trunk, 1.6, 4.1, 0.2, { seg: 6 });
+  b.ico(0.75, C.apple, 1.6, 5.15, 0.2, { detail: 1, sy: 0.92 });
+  b.cyl(0.06, 0.35, C.trunk, 1.6, 5.8, 0.2, { seg: 5 });
+  b.ico(0.28, C.leaf, 1.85, 5.95, 0.2, { sy: 0.4, sx: 1.4 });
+  // vlaggenmast
+  b.cyl(0.06, 4.8, C.metal, 3.6, 0.15, 3.0, { seg: 6 });
+  b.box(1.0, 0.6, 0.04, 0x4cc35a, 4.1, 4.3, 3.0);
+  // bord op het dak (de tekst komt erop als los vlak)
+  for (const x of [-1.1, 1.1]) b.box(0.12, 0.5, 0.12, C.metalDark, x - 0.5, 3.9, 1.9);
+  b.box(3.1, 0.85, 0.12, 0x2b2f3a, -0.5, 4.25, 1.9);
+  // bankje
+  b.box(1.3, 0.1, 0.45, C.wood, -2.6, 0.45, 3.1);
+  for (const x of [-3.1, -2.1]) b.box(0.1, 0.32, 0.4, C.metalDark, x, 0.15, 3.1);
+  g.add(b.mesh());
+  const sign = textSign('KANTOOR', 2.9, 0.68, '#2b2f3a', '#ffc928');
+  sign.position.set(-0.5, 4.675, 1.965);
+  g.add(sign);
+  return g;
+}

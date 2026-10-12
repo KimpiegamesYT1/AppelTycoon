@@ -1,7 +1,7 @@
 // Pure spellogica zonder DOM of 3D, zodat de balans-simulatie dezelfde code gebruikt.
 import {
   STARS, ORCHARD, SALES, LINES, LINE_GROWTH, TIERS, START_MONEY,
-  UPGRADES, INVESTOR_BONUS, INVESTOR_BASE, INVESTOR_POWER, DOCK_LEVELS, PICKER_LEVELS, TRUCK, VEHICLES,
+  UPGRADES, INVESTOR_BONUS, INVESTOR_BASE, INVESTOR_POWER, DOCK_LEVELS, PICKER_LEVELS, TRUCK, VEHICLES, STAFF,
 } from './config.js';
 
 export const SAVE_VERSION = 7;
@@ -25,7 +25,8 @@ export function newState() {
     research: {},        // gekochte upgrades (id -> true)
     goal: 0,
     tutorial: 0,
-    stats: { golden: 0, upgrades: 0 },
+    stats: { golden: 0, upgrades: 0, maxTier: 0 },
+    staff: { points: 0, hired: {} },   // kantoor: punten en gehuurde werknemers (blijven bij investeerders)
     playTime: 0,
     lastTick: Date.now(),
     settings: { sound: true, music: true, quality: 'auto' },
@@ -92,6 +93,10 @@ export function investorMult(state) {
 
 
 export function orchardRate(state, level = state.orchard) {
+  return orchardBase(state, level) * staffMult(state, 'orchard', 0, 'speed');
+}
+
+function orchardBase(state, level = state.orchard) {
   return ORCHARD.baseRate * ORCHARD.levelGrowth ** (level - 1) * tierOrchardMult(state) * upgradeMult(state, 'orchard', 'speed');
 }
 
@@ -99,26 +104,30 @@ export function orchardRate(state, level = state.orchard) {
 // Elk level telt de basisprijs erbij op; prijs-sterren en prijs-upgrades vermenigvuldigen.
 export function lineValue(state, i, level = state.lines[i]) {
   const L = Math.max(1, level);
-  return LINES[i].value * L * 2 ** lineStars(L).price * upgradeMult(state, LINES[i].id, 'price');
+  return LINES[i].value * L * 2 ** lineStars(L).price * upgradeMult(state, LINES[i].id, 'price') * staffMult(state, 'line', i, 'price');
 }
 
 // Stuks per seconde van een lijn: alleen sterren en upgrades maken een machine sneller.
 export function lineRate(state, i, level = state.lines[i]) {
   if (level <= 0) return 0;
-  return LINES[i].rate * 2 ** lineStars(level).speed * upgradeMult(state, LINES[i].id, 'speed');
+  return LINES[i].rate * 2 ** lineStars(level).speed * upgradeMult(state, LINES[i].id, 'speed') * staffMult(state, 'line', i, 'speed');
 }
 
 // Hoeveel kratten per seconde de vrachtwagens wegbrengen.
 export function transportRate(state, level = state.sales) {
+  return transportBase(state, level) * staffMult(state, 'sales', 0, 'speed');
+}
+
+function transportBase(state, level = state.sales) {
   return SALES.baseRate * SALES.levelGrowth ** (level - 1) * truckCount(level) * (SALES.tierBoost ? tierOrchardMult(state) : 1) * upgradeMult(state, 'transport', 'speed');
 }
 
 export function binCapacity(state, level = state.orchard) {
-  return Math.max(ORCHARD.binMin, orchardRate(state, level) * ORCHARD.binSeconds);
+  return Math.max(ORCHARD.binMin, orchardBase(state, level) * ORCHARD.binSeconds);
 }
 
 export function storeCapacity(state, level = state.sales) {
-  return Math.max(SALES.storeMin, transportRate(state, level) * SALES.storeSeconds);
+  return Math.max(SALES.storeMin, transportBase(state, level) * SALES.storeSeconds);
 }
 
 // Prijsvermenigvuldiger: onderzoek, uitbreidingen en investeerders.
@@ -329,6 +338,9 @@ export function buyLine(state, i) {
   if (!lineUnlockable(state, i) || state.money < LINES[i].unlock) return false;
   state.money -= LINES[i].unlock;
   state.lines[i] = 1;
+  ensureStaff(state);
+  state.staff.points++;
+  state.stats.linesOpened = (state.stats.linesOpened || 0) + 1;
   return true;
 }
 
@@ -341,6 +353,7 @@ export function buyTier(state) {
   if (!t || state.money < t.cost) return false;
   state.money -= t.cost;
   state.tier++;
+  state.stats.maxTier = Math.max(state.stats.maxTier || 0, state.tier);
   return true;
 }
 
@@ -388,9 +401,100 @@ export function prestige(state) {
   fresh.stats = state.stats;
   fresh.playTime = state.playTime;
   fresh.settings = state.settings;
+  // werknemers en punten blijven; ze gaan terug naar het kantoor (de machines zijn weg)
+  fresh.staff = ensureStaff(state);
+  for (const r of Object.values(fresh.staff.hired)) r.at = null;
   Object.keys(state).forEach((k) => { delete state[k]; });
   Object.assign(state, fresh);
   return gain;
+}
+
+// ---- Kantoor: superwerknemers ----
+
+export function ensureStaff(state) {
+  if (!state.staff || typeof state.staff !== 'object') state.staff = { points: 0, hired: {} };
+  if (!Number.isFinite(state.staff.points)) state.staff.points = 0;
+  if (!state.staff.hired || typeof state.staff.hired !== 'object') state.staff.hired = {};
+  return state.staff;
+}
+
+export const staffDef = (id) => STAFF.list.find((e) => e.id === id);
+const sameStation = (a, kind, i) => a && a.kind === kind && (kind !== 'line' || a.i === i);
+
+// 'active' (aan het werk), 'rest' (pauze) of 'ready' (wacht tot je hem aantikt)
+export function staffStatus(rec, now = Date.now()) {
+  if (now < rec.until) return 'active';
+  if (now < rec.rest) return 'rest';
+  return 'ready';
+}
+
+// Werknemer (id) die bij dit station staat, of null.
+export function staffAt(state, kind, i = 0) {
+  const h = state.staff && state.staff.hired;
+  if (!h) return null;
+  for (const id in h) if (sameStation(h[id].at, kind, i)) return id;
+  return null;
+}
+
+// Vermenigvuldiger van een werknemer die nu aan het werk is bij dit station.
+export function staffMult(state, kind, i, type) {
+  const h = state.staff && state.staff.hired;
+  if (!h) return 1;
+  for (const id in h) {
+    const r = h[id];
+    if (!sameStation(r.at, kind, i) || !(Date.now() < r.until)) continue;
+    const e = staffDef(id);
+    return (e && e[type]) || 1;
+  }
+  return 1;
+}
+
+// Is de werknemer zichtbaar in het kantoor (ooit die uitbreiding bereikt)?
+export function staffUnlocked(state, e) {
+  return Math.max(state.tier, (state.stats && state.stats.maxTier) || 0) >= e.tier;
+}
+
+// Prijs-werknemers werken alleen bij machines; snelheid kan ook bij de boomgaard en het vervoer.
+export function staffCanWork(e, st) {
+  if (st.kind === 'line') return true;
+  return !!e.speed && !e.price && (st.kind === 'orchard' || st.kind === 'sales');
+}
+
+export function hireStaff(state, id) {
+  const st = ensureStaff(state);
+  const e = staffDef(id);
+  if (!e || st.hired[id] || !staffUnlocked(state, e) || st.points < e.cost) return false;
+  st.points -= e.cost;
+  st.hired[id] = { at: null, until: 0, rest: 0 };
+  return true;
+}
+
+// Zet een werknemer bij een station. Staat daar al iemand, dan gaat die terug naar het kantoor.
+// Is hij uitgerust, dan begint hij meteen.
+export function placeStaff(state, id, at, now = Date.now()) {
+  const st = ensureStaff(state);
+  const r = st.hired[id];
+  const e = staffDef(id);
+  if (!r || !e || !at || !staffCanWork(e, at)) return false;
+  if (at.kind === 'line' && !(state.lines[at.i] > 0)) return false;
+  const other = staffAt(state, at.kind, at.i || 0);
+  if (other && other !== id) st.hired[other].at = null;
+  r.at = at.kind === 'line' ? { kind: 'line', i: at.i } : { kind: at.kind };
+  if (staffStatus(r, now) === 'ready') activateStaff(state, id, now);
+  return true;
+}
+
+export function unplaceStaff(state, id) {
+  const r = ensureStaff(state).hired[id];
+  if (r) r.at = null;
+}
+
+export function activateStaff(state, id, now = Date.now()) {
+  const r = ensureStaff(state).hired[id];
+  if (!r || !r.at || staffStatus(r, now) !== 'ready') return false;
+  r.until = now + STAFF.active * 1000;
+  r.rest = r.until + STAFF.rest * 1000;
+  return true;
 }
 
 // ---- Tijd ----

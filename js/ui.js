@@ -1,13 +1,19 @@
 // Alle HTML-interface: HUD, panelen, labels boven stations, meldingen.
 import * as E from './economy.js';
-import { LINES, TIERS, UPGRADES, ORCHARD, SALES, DOCK_LEVELS, PICKER_LEVELS, STARS, INVESTOR_BONUS } from './config.js';
+import { LINES, TIERS, UPGRADES, ORCHARD, SALES, DOCK_LEVELS, PICKER_LEVELS, STARS, INVESTOR_BONUS, STAFF } from './config.js';
 import { fmt, money, duration, rate } from './format.js';
 import { goalAt, goalProgress, goalReward } from './goals.js';
 import { sfx } from './audio.js';
 import { TUTORIAL, tutorialDone } from './tutorial.js';
-import { icon, glyph, stationGlyph } from './icons.js';
+import { icon, glyph, stationGlyph, avatar } from './icons.js';
 
 const $ = (sel) => document.querySelector(sel);
+const clock = (sec) => { const t = Math.max(0, Math.ceil(sec)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+const mul = (n) => 'x' + String(n).replace('.', ',');
+// vaardigheden van een werknemer als kleine labels
+const skillTags = (e) => (e.speed ? `<span class="sk sk-speed">${icon('bolt')}Snelheid ${mul(e.speed)}</span>` : '')
+  + (e.price ? `<span class="sk sk-price">€ Prijs ${mul(e.price)}</span>` : '');
+const stationName = (at) => (at.kind === 'line' ? LINES[at.i].name : at.kind === 'orchard' ? 'Boomgaard' : 'Vervoer');
 
 export class UI {
   constructor(game) {
@@ -140,6 +146,19 @@ export class UI {
       case 'reset-confirm': this.confirmReset(); break;
       case 'reset': g.hardReset(); break;
       case 'offline-claim': this.closeModal(); g.claimOffline(); break;
+      case 'hire': if (g.hireStaff(d.id)) this.panel.data = { pick: d.id }; break;
+      case 'staff-place': sfx.click(); this.panel.data = { pick: d.id }; this.lastHtml = ''; break;
+      case 'staff-back': sfx.click(); this.panel.data = {}; this.lastHtml = ''; break;
+      case 'staff-to': if (g.placeStaff(d.id, JSON.parse(d.st))) { this.panel.data = {}; this.lastHtml = ''; } break;
+      case 'staff-off': g.unplaceStaff(d.id); break;
+      case 'staff-start': g.activateStaff(d.id); break;
+      case 'office-intro': this.closeModal(); this.open('office'); g.world.focus({ kind: 'office' }); break;
+      case 'staff-for': sfx.click(); this.open('office', { for: JSON.parse(d.st) }); break;
+      case 'staff-pick': {
+        const at = this.panel.data.for;
+        if (g.placeStaff(d.id, at)) this.openStation(at);
+        break;
+      }
       default: break;
     }
     this.refresh();
@@ -162,8 +181,9 @@ export class UI {
       settings: () => this.settingsPanel(),
       station: () => this.stationPanel(data),
       chain: () => this.chainPanel(),
+      office: () => this.officePanel(),
     };
-    this.panel = { id, data, ...builders[id]() };
+    this.panel = { id, data: data || {}, ...builders[id]() };
     this.el.sheet.innerHTML = `
       <div class="sheet-head">
         <div class="sheet-icon">${this.panel.icon}</div>
@@ -217,6 +237,22 @@ export class UI {
         } else this.stopHoldNow();
       }
     }
+    this.updateTimers(body);
+  }
+
+  // Aftellers en balkjes van werknemers: elke keer bijwerken zonder het hele paneel opnieuw te tekenen
+  // (anders mis je soms een tik op een knop).
+  updateTimers(root) {
+    const now = Date.now();
+    root.querySelectorAll('[data-until]').forEach((el) => {
+      const t = clock((+el.dataset.until - now) / 1000);
+      if (el.textContent !== t) el.textContent = t;
+    });
+    root.querySelectorAll('[data-from]').forEach((el) => {
+      const a = +el.dataset.from, b = +el.dataset.to;
+      const w = `${Math.max(0, Math.min(100, ((b - now) / (b - a)) * 100)).toFixed(1)}%`;
+      if (el.style.width !== w) el.style.width = w;
+    });
   }
 
   amountToggle() {
@@ -328,7 +364,7 @@ export class UI {
         const html = `
           <div class="lv-head">${this.starBar(st.kind, level)}</div>
           <div class="chips n${chips.length}">${chips.join('')}</div>
-          ${extra}
+          ${extra}${this.staffStrip(st)}
           <div class="buy-row">${this.amountToggle()}${this.buyButton(st.kind, st.i || 0)}</div>`;
         // sterren rechts in de kop, naast het kruisje
         const nStars = this.marks(st.kind).filter((x) => level >= x).length;
@@ -336,6 +372,26 @@ export class UI {
         return { title, sub, html, badge: this.starRow(st.kind, level, false) };
       },
     };
+  }
+
+  // Superwerknemer bij dit station (of een knop om er een te plaatsen).
+  staffStrip(st) {
+    const s = this.state;
+    if (!tutorialDone(s)) return '';
+    const staff = E.ensureStaff(s);
+    const id = E.staffAt(s, st.kind, st.i || 0);
+    if (id) {
+      const e = E.staffDef(id);
+      const info = this.staffState(staff.hired[id], false);
+      const right = info.st === 'ready' ? `<span class="btn small gold pulse">${icon('bolt')} Start</span>` : '';
+      return `<button class="staff-strip st-${info.st}" data-action="${info.st === 'ready' ? 'staff-start' : 'staff-for'}" data-id="${id}" data-st='${JSON.stringify(st)}'>
+        <span class="sc-ava">${avatar(e)}</span><span class="sc-main"><b>${e.name} <small>${skillTags(e)}</small></b><span class="sc-status">${info.html}</span></span>${right}</button>`;
+    }
+    const can = Object.keys(staff.hired).some((k) => E.staffCanWork(E.staffDef(k), st));
+    const hireable = STAFF.list.some((e) => !staff.hired[e.id] && E.staffUnlocked(s, e) && staff.points >= e.cost);
+    if (!can && !hireable) return '';
+    return `<button class="staff-strip empty" data-action="${can ? 'staff-for' : 'open'}" data-v="office" data-st='${JSON.stringify(st)}'>
+      <span class="sc-ava add">${icon('briefcase')}</span><span class="sc-main"><b>${can ? 'Superwerknemer plaatsen' : 'Huur een superwerknemer'}</b><small>${can ? 'Sneller of meer waard, 3 minuten lang' : 'In het Kantoor, met je punten'}</small></span></button>`;
   }
 
   // De machine die nu het goedkoopst een level omhoog kan (voor 'Machines'-knoppen).
@@ -445,30 +501,182 @@ export class UI {
             const c = structuredClone(s);
             c.lines[i] = 1;
             const cp = E.computeProduction(c, 0, true).lines[i];
-            html += `<div class="card highlight"><div class="big-icon">${glyph(l.id)}</div><div class="card-text"><b>Nieuwe lijn: ${l.name}</b>
-              <small>${money(l.value * E.priceMult(s))} per stuk · ${l.apples} ${l.apples === 1 ? 'appel' : 'appels'} per stuk</small>
-              <small>Op level 1: ${fmt(E.lineRate(c, i))}/s, levert ${money(cp.income * 60)} per minuut</small></div>
-              <button class="btn orange ${can ? '' : 'disabled'}" data-action="unlock" data-i="${i}">${money(l.unlock)}</button></div>`;
+            html += `<div class="newline-card"><div class="nl-ic">${glyph(l.id)}</div><div class="card-text"><small class="kicker">Nieuwe productielijn</small><b>${l.name}</b>
+              <small>${money(cp.income * 60)} per minuut · ${l.apples} ${l.apples === 1 ? 'appel' : 'appels'} per stuk</small></div>
+              <button class="btn orange ${can ? '' : 'disabled'}" data-action="unlock" data-i="${i}">Bouwen<br><small>${money(l.unlock)}</small></button></div>`;
           }
         });
         if (next) {
+          const k = s.tier + 1;
           const perks = [];
-          if (next.slots > cur.slots) perks.push(`Ruimte voor productielijn ${next.slots}: <b>${LINES[next.slots - 1].name}</b>`);
-          perks.push(`Alle inkomsten <b>x${String(next.mult).replace('.', ',')}</b>`);
-          if (next.orchard > 1) perks.push(`Boomgaard <b>x${String(next.orchard).replace('.', ',')}</b> appels`);
-          if (next.plots > cur.plots) perks.push(`Extra boomgaardperceel (${next.plots} totaal)`);
+          if (next.slots > cur.slots) perks.push([glyph(LINES[next.slots - 1].id), LINES[next.slots - 1].name, 'Nieuwe lijn']);
+          perks.push([`<span class="pk-coin">€</span>`, mul(next.mult), 'Inkomen']);
+          if (next.orchard > 1) perks.push([glyph('orchard'), mul(next.orchard), 'Appels']);
+          if (next.plots > cur.plots) perks.push([glyph('orchard'), '+1', 'Perceel']);
           const can = s.money >= next.cost;
-          html += `<div class="card tier-next">
-            <div class="tier-name">Volgende: <b>${next.name}</b></div>
-            <ul class="perks">${perks.map((p) => `<li>${p}</li>`).join('')}</ul>
-            <button class="btn orange wide ${can ? '' : 'disabled'}" data-action="tier">Uitbreiden · ${money(next.cost)}</button>
-            ${can ? '' : `<small class="eta">Nog ${duration((next.cost - s.money) / Math.max(1e-9, this.game.prod.income))} sparen bij huidig inkomen</small>`}
+          const pct = Math.min(100, (s.money / next.cost) * 100);
+          html += `<div class="tier-hero ${can ? 'can' : ''}">
+            <div class="th-top">
+              <div class="th-art">${this.tierArt(k)}</div>
+              <div class="th-name"><small class="kicker">Volgende uitbreiding · ${k + 1}/${TIERS.length}</small><h3>${next.name}</h3></div>
+            </div>
+            <div class="th-perks n${perks.length}">${perks.map(([ic, v, t]) => `<div class="perk"><span class="pk-ic">${ic}</span><b>${v}</b><small>${t}</small></div>`).join('')}</div>
+            <div class="th-progress"><div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div>
+              <span>${can ? `${icon('check')} Genoeg geld!` : `${money(s.money)} van ${money(next.cost)}`}</span></div>
+            <button class="btn orange wide ${can ? '' : 'disabled'}" data-action="tier">${icon('expand')} Uitbreiden · ${money(next.cost)}</button>
+            ${can ? '' : `<small class="eta">${icon('clock')} nog ${duration((next.cost - s.money) / Math.max(1e-9, this.game.prod.income))} sparen</small>`}
           </div>`;
         } else {
-          html += `<div class="tip">Je hebt de grootste fabriek die er bestaat! Haal investeerders binnen om nog sneller te groeien.</div>`;
+          html += `<div class="tier-hero can"><div class="th-top"><div class="th-art">${this.tierArt(s.tier)}</div>
+            <div class="th-name"><small class="kicker">Klaar!</small><h3>${cur.name}</h3></div></div>
+            <div class="tip">Je hebt de grootste fabriek die er bestaat! Haal investeerders binnen om nog sneller te groeien.</div></div>`;
         }
-        html += `<div class="tier-path">${TIERS.map((t, k) => `<div class="tp ${k < s.tier ? 'done' : k === s.tier ? 'cur' : ''}"><span>${k <= s.tier ? icon('check') : k + 1}</span>${t.name}</div>`).join('')}</div>`;
+        // de route: alle uitbreidingen onder elkaar, met wat ze opleveren
+        html += `<div class="route-head">Jouw route</div><ol class="route">${TIERS.map((t, k) => {
+          const cls = k < s.tier ? 'done' : k === s.tier ? 'cur' : k === s.tier + 1 ? 'next' : 'lock';
+          const prev = TIERS[k - 1];
+          const bits = [];
+          if (k === 0) bits.push('Begin');
+          else {
+            if (t.slots > prev.slots) bits.push(`${glyph(LINES[t.slots - 1].id)}${LINES[t.slots - 1].name}`);
+            bits.push(`€ ${mul(t.mult)}`);
+            if (t.plots > prev.plots) bits.push('+perceel');
+          }
+          const dot = k <= s.tier ? icon('check') : k === s.tier + 1 ? k + 1 : icon('lock');
+          return `<li class="${cls}"><span class="r-dot">${dot}</span><span class="r-name">${t.name}${k === s.tier ? '<em>nu</em>' : ''}</span><span class="r-perks">${bits.join(' · ')}</span></li>`;
+        }).join('')}</ol>`;
         return { title: 'Uitbreiden', sub: `Nu: <b>${cur.name}</b>`, html };
+      },
+    };
+  }
+
+  // Tekeningetje van een uitbreiding: het gebouw groeit mee (hout, baksteen, beton, modern) en
+  // krijgt er silo's, torens en uiteindelijk een raket bij.
+  tierArt(k) {
+    const style = k === 0 ? 'wood' : k === 1 ? 'brick' : k < 5 ? 'concrete' : 'modern';
+    const wall = { wood: '#c68e57', brick: '#c0634a', concrete: '#e9e4da', modern: '#f7f7f7' }[style];
+    const trim = { wood: '#8a5a33', brick: '#8e3f2d', concrete: '#3d7bd9', modern: '#ffc43d' }[style];
+    const w = 34 + Math.min(k, 6) * 7;
+    const h = 18 + Math.min(k, 6) * 2.5;
+    const x0 = 60 - w / 2;
+    const base = 58;
+    let svg = `<rect x="2" y="${base}" width="116" height="8" rx="4" fill="#8fd16a"/>`;
+    if (k >= 6) svg += `<rect x="${x0 - 14}" y="${base - 26}" width="10" height="26" rx="5" fill="#e53935"/><rect x="${x0 - 14}" y="${base - 26}" width="10" height="5" rx="2.5" fill="#c62828"/>`;
+    if (k >= 8) svg += `<rect x="${x0 + w + 4}" y="${base - 40}" width="12" height="40" fill="#d5e6f5"/>${[0, 1, 2, 3, 4].map((r) => `<rect x="${x0 + w + 6}" y="${base - 36 + r * 7}" width="8" height="3" fill="#8fd3ff"/>`).join('')}`;
+    if (k >= 10) svg += `<path d="M${x0 + w + 24} ${base - 44} l5 10 v26 h-10 v-26z" fill="#f4f1ea" stroke="#d9473b" stroke-width="1.5"/><rect x="${x0 + w + 21}" y="${base - 8}" width="6" height="8" fill="#d9473b"/>`;
+    svg += `<rect x="${x0}" y="${base - h}" width="${w}" height="${h}" fill="${wall}"/>`;
+    if (style === 'wood' || style === 'brick') svg += `<path d="M${x0 - 3} ${base - h} L60 ${base - h - 12} L${x0 + w + 3} ${base - h}z" fill="${trim}"/>`;
+    else {
+      svg += `<rect x="${x0 - 1.5}" y="${base - h - 3}" width="${w + 3}" height="4" fill="${trim}"/>`;
+      for (let t = 0; t < Math.min(5, 1 + Math.floor(k / 2)); t++) svg += `<path d="M${x0 + 4 + t * 9} ${base - h - 3} l7 -7 v7z" fill="#cfd3d8"/>`;
+    }
+    if (k >= 1) svg += `<rect x="${x0 + w - 9}" y="${base - h - 14}" width="5" height="12" fill="#8a8f99"/>`;
+    const cols = Math.max(2, Math.floor((w - 10) / 9));
+    for (let c = 0; c < cols; c++) svg += `<rect x="${x0 + 5 + c * ((w - 10) / cols) + 1}" y="${base - h + 5}" width="${(w - 10) / cols - 3}" height="6" rx="1" fill="#8fd3ff"/>`;
+    svg += `<rect x="${60 - 5}" y="${base - 11}" width="10" height="11" fill="${trim}"/>`;
+    svg += `<circle cx="60" cy="${base - h - (style === 'wood' || style === 'brick' ? 4 : 9)}" r="3.4" fill="#e53935"/>`;
+    return `<svg viewBox="0 0 120 66" aria-hidden="true">${svg}</svg>`;
+  }
+
+  // ---------- Kantoor ----------
+
+  // Status van een werknemer als rij: wat hij doet en hoe lang nog.
+  staffState(r, withWhere = true) {
+    const st = E.staffStatus(r);
+    if (!r.at) return { st: 'free', html: `<span class="ss ss-free">In het kantoor</span>` };
+    const where = withWhere ? `<span class="ss-where">${stationGlyph(r.at, LINES)}${stationName(r.at)}</span>` : '';
+    if (st === 'active') return { st, html: `${where}<span class="ss ss-active">${icon('bolt')}Aan het werk <b data-until="${r.until}"></b></span><span class="tbar"><i data-from="${r.until - STAFF.active * 1000}" data-to="${r.until}"></i></span>` };
+    if (st === 'rest') return { st, html: `${where}<span class="ss ss-rest">${icon('zzz')}Pauze <b data-until="${r.rest}"></b></span><span class="tbar rest"><i data-from="${r.until}" data-to="${r.rest}"></i></span>` };
+    return { st, html: `${where}<span class="ss ss-ready">${icon('sparkle')}Uitgerust!</span>` };
+  }
+
+  officePanel() {
+    return {
+      icon: icon('briefcase'),
+      render: () => {
+        const s = this.state;
+        const staff = E.ensureStaff(s);
+        const d = this.panel.data || {};
+        const pts = staff.points;
+        const sub = `<span class="pts-pill">${icon('star')}${pts} ${pts === 1 ? 'punt' : 'punten'}</span>`;
+
+        // kies een plek voor een werknemer
+        if (d.pick && staff.hired[d.pick]) {
+          const e = E.staffDef(d.pick);
+          const spots = [{ kind: 'orchard' }, ...LINES.map((l, i) => ({ kind: 'line', i })).filter((st) => s.lines[st.i] > 0), { kind: 'sales' }];
+          let html = `<div class="staff-card big"><div class="sc-ava">${avatar(e)}</div><div class="sc-main"><b>${e.name}</b><small>${e.role}</small><div class="sc-skill">${skillTags(e)}</div></div></div>
+            <div class="route-head">Waar gaat ${e.name} werken?</div>`;
+          for (const st of spots) {
+            const ok = E.staffCanWork(e, st);
+            const other = E.staffAt(s, st.kind, st.i || 0);
+            const here = other === d.pick;
+            const lv = E.stationLevel(s, st.kind, st.i);
+            const note = !ok ? 'Alleen bij machines' : here ? `${e.name} werkt hier al` : other ? `${E.staffDef(other).name} werkt hier · wisselen` : 'Vrij';
+            html += `<div class="spot ${ok ? '' : 'dim'}"><span class="sp-ic">${stationGlyph(st, LINES)}</span>
+              <span class="li-text"><b>${stationName(st)} <span class="lv">Lv ${lv}</span></b><small>${note}</small></span>
+              ${other && !here ? `<span class="sp-other">${avatar(E.staffDef(other))}</span>` : ''}
+              <button class="btn small green ${ok && !here ? '' : 'disabled'}" data-action="staff-to" data-id="${d.pick}" data-st='${JSON.stringify(st)}'>Hier</button></div>`;
+          }
+          html += `<button class="btn wide ghost" data-action="staff-back">Terug</button>`;
+          return { title: 'Werknemer plaatsen', sub, html };
+        }
+
+        // kies een werknemer voor een station
+        if (d.for) {
+          const at = d.for;
+          const list = Object.keys(staff.hired).map(E.staffDef).filter((e) => e && E.staffCanWork(e, at));
+          let html = `<div class="route-head">Wie gaat bij ${stationName(at)} werken?</div>`;
+          if (!list.length) html += `<div class="tip">Je hebt nog niemand die hier kan werken. Huur een superwerknemer met je punten.</div>`;
+          for (const e of list) {
+            const r = staff.hired[e.id];
+            const here = r.at && r.at.kind === at.kind && (at.kind !== 'line' || r.at.i === at.i);
+            html += `<div class="staff-card"><div class="sc-ava">${avatar(e)}</div><div class="sc-main"><b>${e.name} <small>${e.role}</small></b><div class="sc-skill">${skillTags(e)}</div><div class="sc-status">${this.staffState(r).html}</div></div>
+              <div class="sc-btns"><button class="btn small green ${here ? 'disabled' : ''}" data-action="staff-pick" data-id="${e.id}">${here ? 'Werkt hier' : 'Kies'}</button></div></div>`;
+          }
+          html += `<button class="btn wide ghost" data-action="open" data-v="office">Naar het kantoor</button>`;
+          return { title: 'Kies een werknemer', sub, html };
+        }
+
+        const hired = STAFF.list.filter((e) => staff.hired[e.id]);
+        const forHire = STAFF.list.filter((e) => !staff.hired[e.id] && E.staffUnlocked(s, e));
+        const locked = STAFF.list.filter((e) => !staff.hired[e.id] && !E.staffUnlocked(s, e));
+        let html = `<div class="office-hero"><div class="oh-pts">${icon('star')}<b>${pts}</b></div>
+          <div><b>${pts === 1 ? 'Kantoorpunt' : 'Kantoorpunten'}</b><small>Elke productielijn die je opent levert 1 punt op, ook na het verkopen van je fabriek.</small></div></div>`;
+        if (hired.length) {
+          html += `<div class="route-head">Jouw team</div>`;
+          for (const e of hired) {
+            const r = staff.hired[e.id];
+            const info = this.staffState(r);
+            let btns = '';
+            if (!r.at) btns = `<button class="btn small green" data-action="staff-place" data-id="${e.id}">Plaatsen</button>`;
+            else {
+              if (info.st === 'ready') btns += `<button class="btn small gold pulse" data-action="staff-start" data-id="${e.id}">${icon('bolt')} Start</button>`;
+              btns += `<button class="btn small ghost" data-action="staff-place" data-id="${e.id}">Verplaats</button>`;
+            }
+            html += `<div class="staff-card st-${info.st}"><div class="sc-ava">${avatar(e)}</div>
+              <div class="sc-main"><b>${e.name} <small>${e.role}</small></b><div class="sc-skill">${skillTags(e)}</div><div class="sc-status">${info.html}</div></div>
+              <div class="sc-btns">${btns}</div></div>`;
+          }
+        }
+        if (forHire.length) {
+          html += `<div class="route-head">Te huur</div>`;
+          for (const e of forHire) {
+            const can = pts >= e.cost;
+            html += `<div class="staff-card hire"><div class="sc-ava">${avatar(e)}</div>
+              <div class="sc-main"><b>${e.name} <small>${e.role}</small></b><div class="sc-skill">${skillTags(e)}</div></div>
+              <div class="sc-btns"><button class="btn small orange ${can ? '' : 'disabled'}" data-action="hire" data-id="${e.id}">Huur<br><small>${icon('star')} ${e.cost}</small></button></div></div>`;
+          }
+        }
+        if (locked.length) {
+          html += `<div class="route-head">Binnenkort</div>`;
+          for (const e of locked) {
+            html += `<div class="staff-card locked"><div class="sc-ava">${avatar(e, true)}</div>
+              <div class="sc-main"><b>${e.name} <small>${e.role}</small></b><div class="sc-skill">${skillTags(e)}</div></div>
+              <div class="sc-lock">${icon('lock')}<small>${TIERS[e.tier].name}</small></div></div>`;
+          }
+        }
+        html += `<div class="tip small">Een werknemer werkt ${STAFF.active / 60} minuten en neemt daarna ${STAFF.rest / 60} minuten pauze. Daarna tik je op hem (of op Start) om hem weer aan het werk te zetten. Eén werknemer per plek.</div>`;
+        return { title: 'Kantoor', sub, html };
       },
     };
   }
@@ -617,6 +825,18 @@ export class UI {
       <button class="btn green wide" data-action="modal-close">Verder spelen</button>`, true);
   }
 
+  // Eenmalige uitleg zodra het kantoor er is.
+  officeIntro() {
+    const s = this.state;
+    s.stats.officeIntro = 1;
+    const kees = STAFF.list[0];
+    this.modal(`<div class="modal-icon office-intro">${avatar(kees)}</div><h2>Nieuw: het Kantoor!</h2>
+      <p>Huur <b>superwerknemers</b> en zet ze bij een machine. Ze maken hem <b>sneller</b> of je producten <b>meer waard</b>.</p>
+      <p>Ze werken ${STAFF.active / 60} minuten en rusten dan ${STAFF.rest / 60} minuten. Daarna <b>tik je op ze</b> om ze weer aan het werk te zetten.</p>
+      <p>Elke productielijn die je opent geeft <b>1 kantoorpunt</b>. Je hebt er nu <b>${s.staff.points}</b>.</p>
+      <button class="btn green wide" data-action="office-intro">Naar het kantoor</button>`, true);
+  }
+
   newVersion(from) {
     const what = from === 2
       ? 'Elke upgrade maakt je producten nu meer waard. Bij een <b>ster</b> wordt een machine sneller of meer waard, en in het menu <b>Upgrades</b> vind je flinke bonussen.'
@@ -704,6 +924,7 @@ export class UI {
       if (tutorialDone(s)) this.updateGoal(E.incomePerSecond(s));
       this.updateBadges();
       this.updateVisibility();
+      if (tutorialDone(s) && !s.stats.officeIntro && this.el.modal.classList.contains('hidden') && !this.panel && now > 8000) this.officeIntro();
       this.updateChainMini();
       // meldingen komen net onder de HUD (die is hoger tijdens de intro of met de ketenbalkjes)
       const hb = Math.round(document.querySelector('#hud').getBoundingClientRect().bottom);
@@ -808,6 +1029,7 @@ export class UI {
     const s = this.state;
     const show = (sel, on) => document.querySelector(sel).classList.toggle('hidden', !on);
     const tut = tutorialDone(s);
+    show('[data-open="office"]', tut);
     show('[data-open="research"]', tut || Object.keys(s.research).length > 0);
     show('[data-open="expand"]', s.lines[1] > 0 || s.tier > 0);
     show('#btn-investors', s.investors > 0 || s.prestiges > 0 || E.pendingInvestors(s) > 0);
@@ -833,6 +1055,20 @@ export class UI {
     this.float(p.x, p.y, '+' + money(amount), 'cash');
   }
 
+  // Iets te doen in het kantoor: uitgeruste werknemers, iemand zonder plek, of genoeg punten om te huren.
+  officeAlerts() {
+    const s = this.state;
+    const staff = E.ensureStaff(s);
+    const now = Date.now();
+    let n = 0;
+    for (const id in staff.hired) {
+      const r = staff.hired[id];
+      if (!r.at || E.staffStatus(r, now) === 'ready') n++;
+    }
+    if (n) return n;
+    return STAFF.list.some((e) => !staff.hired[e.id] && E.staffUnlocked(s, e) && staff.points >= e.cost) ? '!' : 0;
+  }
+
   updateBadges() {
     const s = this.state;
     const r = UPGRADES.filter((x) => E.upgradeAvailable(s, x) && s.money >= x.cost).length;
@@ -844,6 +1080,10 @@ export class UI {
     const eb = document.querySelector('[data-open="expand"] .badge');
     eb.classList.toggle('hidden', !canTier);
     eb.textContent = '!';
+    const ob = document.querySelector('[data-open="office"] .badge');
+    const oa = this.officeAlerts();
+    ob.classList.toggle('hidden', !oa);
+    ob.textContent = oa;
     // rood randje om de ketenbalkjes als het magazijn vol zit (alles loopt dan vast)
     this.el.chainMini.classList.toggle('alert', this.game.prod.storeFull);
     const ib = document.querySelector('#btn-investors');
@@ -883,7 +1123,7 @@ export class UI {
         // pijltje wijst naar waar de gouden appel echt zit (het label zelf staat aan de rand)
         if (out) el.style.setProperty('--a', `${Math.atan2(ay - (p.y - 21), ax - p.x).toFixed(2)}rad`);
       }
-      const hide = !p.visible || (zoomedOut && a.st.kind === 'line');
+      const hide = !p.visible || (zoomedOut && (a.st.kind === 'line' || (a.st.kind === 'staff' && !el.classList.contains('staff-ready'))));
       // alleen de DOM aanraken als er echt iets verandert (scheelt veel werk als de camera stilstaat)
       if (el._hide !== hide) { el._hide = hide; el.style.display = hide ? 'none' : ''; }
       if (hide) continue;
@@ -935,6 +1175,20 @@ export class UI {
       html = `<span class="lb-icon">${glyph('sales')}</span><span>Nieuwe laadplek<br><b>level ${st.level}</b></span>`;
     } else if (st.kind === 'golden') {
       html = `<i class="gold-arrow"></i><span class="lb-icon">${glyph('gold')}</span>`;
+    } else if (st.kind === 'office') {
+      const n = this.officeAlerts();
+      html = `<span class="lb-icon office-ic">${icon('briefcase')}</span><span>Kantoor</span>${n ? `<span class="up">${n}</span>` : ''}`;
+    } else if (st.kind === 'staff') {
+      const r = s.staff.hired[st.id];
+      const e = E.staffDef(st.id);
+      if (!r || !e) return;
+      const now = Date.now();
+      const status = E.staffStatus(r, now);
+      el.classList.toggle('staff-ready', status === 'ready');
+      el.classList.toggle('staff-rest', status === 'rest');
+      if (status === 'ready') html = `<span class="lb-ava">${avatar(e)}</span><span>${e.name}<br><b>Tik!</b></span>`;
+      // aan het werk of in de pauze: alleen een klein rondje (de tijd staat in het kantoor en bij de machine)
+      else html = `<span class="lb-ava">${avatar(e)}</span><span class="${status === 'active' ? 'lb-bolt' : 'lb-zzz'}">${icon(status === 'active' ? 'bolt' : 'zzz')}</span>`;
     }
     if (el._html !== html) { el.innerHTML = html; el._html = html; }
     el.classList.toggle('can', can);

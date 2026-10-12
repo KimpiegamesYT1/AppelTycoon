@@ -3,12 +3,15 @@ import { World } from './world.js';
 import { UI } from './ui.js';
 import { sfx, setSound, initMusic, setMusic } from './audio.js';
 import { glyph } from './icons.js';
-import { TUTORIAL } from './tutorial.js';
-import { LINES, TIERS, GOLDEN, BELT_GOLD, OFFLINE, INVESTOR_BONUS, UPGRADES, PICKER_LEVELS, DOCK_LEVELS, STARS } from './config.js';
+import { TUTORIAL, tutorialDone } from './tutorial.js';
+import { LINES, TIERS, GOLDEN, BELT_GOLD, OFFLINE, INVESTOR_BONUS, UPGRADES, PICKER_LEVELS, DOCK_LEVELS, STARS, STAFF } from './config.js';
 import { goalAt, goalProgress, goalReward } from './goals.js';
 import { money, fmt } from './format.js';
 
 const SAVE_KEY = 'appeltycoon.save.v1';
+
+const clock = (sec) => { const t = Math.max(0, Math.ceil(sec)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+const staffSkill = (e) => [e.speed ? `snelheid x${e.speed}` : '', e.price ? `prijs x${e.price}` : ''].filter(Boolean).join(' en ');
 
 function migrate(d) {
   const base = E.newState();
@@ -37,6 +40,10 @@ function migrate(d) {
   for (const k of ['money', 'runEarned', 'totalEarned', 'investors', 'orchard', 'sales', 'tier', 'apples', 'goods', 'goodsValue', 'tutorial']) {
     if (!Number.isFinite(s[k])) s[k] = base[k];
   }
+  // kantoor (nieuw): punten voor de lijnen die al open zijn, plus wat voor eerdere rondes
+  if (!d.staff) s.staff = { points: s.lines.filter((x) => x > 0).length + 2 * (s.prestiges || 0), hired: {} };
+  E.ensureStaff(s);
+  s.stats.maxTier = Math.max(s.stats.maxTier || 0, s.tier);
   if (d.version === 5) convertTransport(s);
   if (d.version <= 6) convertLines(s);
   s.version = E.SAVE_VERSION;
@@ -154,6 +161,7 @@ const game = {
     if (!E.buyLine(state, i)) { sfx.error(); return false; }
     sfx.unlock();
     ui.toast(`Nieuwe productielijn: ${LINES[i].name}!`, glyph(LINES[i].id));
+    if (tutorialDone(state)) setTimeout(() => ui.toast('+1 kantoorpunt voor superwerknemers', 'star'), 900);
     world.focus({ kind: 'line', i });
     setTimeout(() => world.bounceStation({ kind: 'line', i }), 50);
     ui.open('station', { kind: 'line', i });
@@ -200,9 +208,59 @@ const game = {
     ui.toast(`Doel gehaald! +${money(reward)}`, 'target');
   },
 
+  // ---- Kantoor ----
+  hireStaff(id) {
+    if (!E.hireStaff(state, id)) { sfx.error(); return false; }
+    sfx.unlock();
+    const e = E.staffDef(id);
+    ui.toast(`${e.name} is aangenomen! Kies een plek.`, 'star');
+    return true;
+  },
+
+  placeStaff(id, at) {
+    if (!E.placeStaff(state, id, at)) { sfx.error(); return false; }
+    sfx.levelUp(1);
+    const e = E.staffDef(id);
+    const where = at.kind === 'line' ? LINES[at.i].name : at.kind === 'orchard' ? 'de Boomgaard' : 'het Vervoer';
+    ui.toast(`${e.name} werkt nu bij ${where}`, 'check');
+    world.focus(at);
+    return true;
+  },
+
+  unplaceStaff(id) {
+    E.unplaceStaff(state, id);
+    sfx.click();
+  },
+
+  activateStaff(id) {
+    const r = state.staff.hired[id];
+    if (!r) return false;
+    const e = E.staffDef(id);
+    const st = E.staffStatus(r);
+    if (!r.at) { ui.toast(`Zet ${e.name} eerst bij een machine`); sfx.error(); return false; }
+    if (st !== 'ready') {
+      const left = ((st === 'active' ? r.until : r.rest) - Date.now()) / 1000;
+      ui.toast(st === 'active' ? `${e.name} werkt nog ${clock(left)}` : `${e.name} rust nog ${clock(left)}`, 'clock');
+      return false;
+    }
+    E.activateStaff(state, id);
+    sfx.milestone();
+    const pos = world.stationPos({ kind: 'staff', id });
+    if (pos) world.burst(pos.setY(1.6), 40);
+    ui.toast(`${e.name} gaat aan de slag! ${STAFF.active / 60} minuten ${staffSkill(e)}`, 'bolt');
+    return true;
+  },
+
   tapStation(st) {
     if (!st) { ui.close(); return; }
     if (st.kind === 'golden') { this.collectGolden(); return; }
+    if (st.kind === 'office') { sfx.click(); ui.open('office'); world.focus(st); return; }
+    if (st.kind === 'staff') {
+      const r = state.staff.hired[st.id];
+      if (r && E.staffStatus(r) === 'ready') this.activateStaff(st.id);
+      else { sfx.click(); ui.open('office'); }
+      return;
+    }
     if (st.kind === 'dock') st = { kind: 'sales' };
     // een nieuwe lijn bouw je direct door op het prijslabel te tikken
     if (st.kind === 'unlock' && E.lineUnlockable(state, st.i)) {
@@ -317,6 +375,22 @@ if (firstVisit) ui.welcome();
 else if (upgradedFrom) ui.newVersion(upgradedFrom);
 else if (transportConverted || linesConverted) ui.balanceNews(transportConverted, linesConverted);
 
+// Een melding als een geplaatste werknemer klaar is met rusten (een keer per pauze).
+let staffCheckAt = 0;
+function checkStaffReady() {
+  const now = Date.now();
+  if (now < staffCheckAt) return;
+  staffCheckAt = now + 1000;
+  for (const id in state.staff.hired) {
+    const r = state.staff.hired[id];
+    if (!r.at || !r.rest || r.told === r.rest) continue;
+    if (E.staffStatus(r, now) === 'ready') {
+      r.told = r.rest;
+      if (now - r.rest < 5000) ui.toast(`${E.staffDef(id).name} is uitgerust: tik op ${E.staffDef(id).name} om weer te starten`, 'bolt');
+    }
+  }
+}
+
 let lastFrame = performance.now();
 let renderAcc = 0;
 function frame(t) {
@@ -345,6 +419,8 @@ function frame(t) {
   game.prod = E.computeProduction(state, now);
   world.sync(state, game.prod);
   world.beltGoldOn = state.tutorial >= TUTORIAL.length;
+  world.officeOn = tutorialDone(state);
+  checkStaffReady();
 
   // gouden appel
   if (world.golden.visible) {

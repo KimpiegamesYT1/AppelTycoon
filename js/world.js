@@ -1,8 +1,8 @@
 // De 3D-wereld: camera, fabriek, boomgaard, banden met producten, vrachtwagens.
 import * as THREE from '../vendor/three.module.min.js';
 import * as M from './models.js';
-import { LINES, TIERS, TRUCK, PICKER_LEVELS, BELT_GOLD } from './config.js';
-import { truckCount, truckCapacity, starCount, vehicleStage } from './economy.js';
+import { LINES, TIERS, TRUCK, PICKER_LEVELS, BELT_GOLD, STAFF } from './config.js';
+import { truckCount, truckCapacity, starCount, vehicleStage, staffStatus } from './economy.js';
 
 const LINE_SPACING = 5.5;
 const LZ0 = 2.5;
@@ -20,6 +20,7 @@ const DZ1 = 16.5;
 const DEPOT = new THREE.Vector3((DX0 + DX1) / 2, 0, (DZ0 + DZ1) / 2);
 const DEPOT_IN = DX0 + 1.5;
 const dockZ = (k) => -3.6 + k * 3.6;
+const OFFICE = new THREE.Vector3(19, 0, -9.6);
 const BELT_SPEED = 3;
 // Stappen van de prestatieregelaar: maximale pixeldichtheid, schaduwen elk zoveelste beeld, schaduwkaart.
 const PERF_LEVELS = [
@@ -268,6 +269,7 @@ export class World {
     this.buildStatic();
     this.buildPools();
     this.buildOrchardTrees();
+    this.buildOffice();
     this.setupInput();
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -383,6 +385,96 @@ export class World {
     }
     M.mergeStatic(deco);
     this.scene.add(deco);
+  }
+
+  // Kantoor achter de hal: hier huur je superwerknemers (pas zichtbaar na de intro).
+  buildOffice() {
+    this.office = M.officeBuilding();
+    this.office.position.copy(OFFICE);
+    this.office.visible = false;
+    this.scene.add(this.office);
+    this.officeHit = M.hitBox(8, 6, 6.4, OFFICE.x, 0, OFFICE.z + 0.4);
+    this.officeHit.userData.station = { kind: 'office' };
+    this.scene.add(this.officeHit);
+    this.officeOn = false;
+    this.staff = new Map();
+  }
+
+  // Waar een superwerknemer rondloopt bij zijn station.
+  staffArea(at) {
+    if (at.kind === 'orchard') return { x0: BIN.x - 3.4, x1: BIN.x - 0.6, z0: BIN.z + 1.9, z1: BIN.z + 3.2 };
+    if (at.kind === 'sales') return { x0: DEPOT_IN + 0.3, x1: DEPOT_IN + 2.4, z0: DZ0 + 1.3, z1: FEED_Z - 1.3, y: 0.3 };
+    const z = lineZ(at.i);
+    return { x0: 4, x1: 17, z0: z + 1.6, z1: z + 2.15, y: 0.25 };
+  }
+
+  // Superwerknemers in de wereld: één poppetje per geplaatste werknemer.
+  syncStaff(state) {
+    const hired = (state.staff && state.staff.hired) || {};
+    const want = new Set();
+    for (const id in hired) {
+      const r = hired[id];
+      if (!r.at) continue;
+      if (r.at.kind === 'line' && !this.lineObjs[r.at.i]) continue;
+      want.add(id);
+      const key = r.at.kind + (r.at.i ?? '');
+      let p = this.staff.get(id);
+      if (p && p.key !== key) { this.scene.remove(p.obj); disposeTree(p.obj); this.staff.delete(id); p = null; }
+      if (!p) {
+        const e = STAFF.list.find((x) => x.id === id);
+        const obj = M.staffPerson(new THREE.Color(e.shirt).getHex(), new THREE.Color(e.hair).getHex());
+        const area = this.staffArea(r.at);
+        obj.position.set(area.x0 + Math.random() * (area.x1 - area.x0), area.y || 0, area.z0 + Math.random() * (area.z1 - area.z0));
+        obj.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+        this.scene.add(obj);
+        p = { id, key, obj, area, target: obj.position.clone(), wait: 0.3, rec: r, phase: Math.random() * 6 };
+        this.staff.set(id, p);
+        this.bounce(obj);
+        this.burst(obj.position.clone().setY(1.2), 24);
+      }
+      p.rec = r;
+    }
+    for (const [id, p] of this.staff) {
+      if (!want.has(id)) { this.scene.remove(p.obj); disposeTree(p.obj); this.staff.delete(id); }
+    }
+  }
+
+  updateStaff(dt) {
+    const now = Date.now();
+    for (const p of this.staff.values()) {
+      const o = p.obj;
+      const body = o.userData.body;
+      const st = staffStatus(p.rec, now);
+      p.status = st;
+      if (st === 'ready') {
+        // springt en zwaait: tik me aan!
+        body.position.y = Math.abs(Math.sin(this.time * 6 + p.phase)) * 0.35;
+        o.rotation.y += (0.8 - o.rotation.y) * Math.min(1, dt * 6);
+        continue;
+      }
+      if (st === 'rest') {
+        body.position.y = 0;
+        body.rotation.z = Math.sin(this.time * 1.2 + p.phase) * 0.04;
+        continue;
+      }
+      body.rotation.z = 0;
+      if (p.wait > 0) {
+        p.wait -= dt;
+        body.position.y = Math.abs(Math.sin(this.time * 9 + p.phase)) * 0.07;
+        if (p.wait <= 0) {
+          const a = p.area;
+          p.target.set(a.x0 + Math.random() * (a.x1 - a.x0), o.position.y, a.z0 + Math.random() * (a.z1 - a.z0));
+        }
+        continue;
+      }
+      const d = p.target.clone().sub(o.position);
+      d.y = 0;
+      const dist = d.length();
+      if (dist < 0.1) { p.wait = 0.6 + Math.random() * 1.4; continue; }
+      o.position.addScaledVector(d.normalize(), Math.min(dist, 3.2 * dt));
+      o.rotation.y = Math.atan2(d.x, d.z);
+      body.position.y = Math.abs(Math.sin(this.time * 13 + p.phase)) * 0.1;
+    }
   }
 
   buildPools() {
@@ -1016,6 +1108,9 @@ export class World {
       }
     });
 
+    this.office.visible = this.officeOn;
+    this.syncStaff(state);
+
     // bomen
     const plots = TIERS[state.tier].plots;
     const want = Math.min(plots * 16, 3 + Math.floor(state.orchard * 0.75));
@@ -1278,6 +1373,8 @@ export class World {
     if (st.kind === 'sales' || st.kind === 'dock') return DEPOT.clone().setX(DEPOT.x + 2);
     if (st.kind === 'line' || st.kind === 'unlock') return new THREE.Vector3(10, 0, lineZ(st.i));
     if (st.kind === 'tier' && this.siteAnchor) return this.siteAnchor.clone();
+    if (st.kind === 'office') return OFFICE.clone().setZ(OFFICE.z + 2);
+    if (st.kind === 'staff' && this.staff.has(st.id)) return this.staff.get(st.id).obj.position.clone();
     return null;
   }
 
@@ -1357,6 +1454,7 @@ export class World {
     ray.setFromCamera(ndc, this.camera);
     const list = [...this.hits, ...this.lineObjs.filter(Boolean).map((o) => o.hit), ...(this.slotMarks || []).filter((s) => s.hit.userData.station).map((s) => s.hit)];
     if (this.golden.visible) list.unshift(this.goldenHit);
+    if (this.officeOn) list.push(this.officeHit);
     const res = ray.intersectObjects(list, false);
     for (const r of res) if (r.object.userData.station) return r.object.userData.station;
     return null;
@@ -1378,6 +1476,8 @@ export class World {
     });
     if (this.siteAnchor && (state.lines[1] > 0 || state.tier > 0)) out.push({ key: 'tier', st: { kind: 'tier' }, pos: this.siteAnchor });
     if (this.golden.visible) out.push({ key: 'golden', st: { kind: 'golden' }, pos: this.golden.position.clone().setY(5.2) });
+    if (this.officeOn) out.push({ key: 'office', st: { kind: 'office' }, pos: OFFICE.clone().setY(7.4) });
+    for (const p of this.staff.values()) out.push({ key: 'staff-' + p.id, st: { kind: 'staff', id: p.id }, pos: p.obj.position.clone().setY(p.obj.position.y + (p.status === 'ready' ? 2.1 : 1.75)) });
     return out;
   }
 
@@ -1409,6 +1509,7 @@ export class World {
     this.goldApplePool.begin();
     this.goldProductPools.forEach((p) => p.begin());
     this.updateBelts(dt);
+    this.updateStaff(dt);
     this.lineObjs.forEach((o) => {
       if (!o) return;
       const act = o.activity;
