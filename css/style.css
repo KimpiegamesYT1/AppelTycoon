@@ -1,4 +1,5 @@
 :root {
+  --hud-h: 52px;      /* alle blokken in de bovenbalk even hoog */
   --ink: #2b2f3a;
   --ink-soft: #6b7280;
   --panel: #fffaf2;
@@ -75,7 +76,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 /* naast het geld: de ketenbalans in drie balkjes (tik = ketenbalans openen) */
 .chain-mini {
   display: flex; flex-direction: column; justify-content: center; gap: 5px;
-  align-self: stretch; width: 150px;
+  height: var(--hud-h); width: 150px;
   background: var(--hud); border-radius: 16px; padding: 8px 12px;
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18);
 }
@@ -95,6 +96,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   padding: 6px 16px 6px 6px;
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18);
   min-width: 170px;
+  height: var(--hud-h);
 }
 .coin {
   width: 44px; height: 44px;
@@ -113,8 +115,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   background: var(--hud);
   color: #fff;
   border-radius: 16px;
-  height: 46px;
-  min-width: 46px;
+  height: var(--hud-h);
+  min-width: var(--hud-h);
   padding: 0 12px;
   display: flex; align-items: center; justify-content: center; gap: 6px;
   font-size: 18px;
@@ -148,7 +150,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   background: var(--panel);
   border-radius: 16px;
   padding: 5px 6px 5px 10px;
-  min-height: 46px;
+  min-height: var(--hud-h);
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.12);
   cursor: pointer;
   font-size: 14px;
@@ -642,8 +644,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .hud-center { order: 4; flex: 0 0 100%; display: flex; justify-content: flex-end; margin: 0; }
   .hud-center:has(#tutorial:not(.hidden)) { order: 4; flex-basis: 100%; margin: 0; }
   .goal:not(.open) {
-    flex: 0 0 46px;
-    width: 46px; height: 46px; min-height: 46px; padding: 0; border-radius: 50%;
+    flex: 0 0 var(--hud-h);
+    width: var(--hud-h); height: var(--hud-h); min-height: var(--hud-h); padding: 0; border-radius: 50%;
     justify-content: center; position: relative;
     background: conic-gradient(var(--green) calc(var(--p, 0) * 1%), var(--panel) 0);
   }
