@@ -385,9 +385,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .alert-pill b { flex: 1; font-size: 15.5px; }
 .alert-pill .btn { margin: 0; flex-shrink: 0; }
 .alert-pill.ok { background: #ecf9ec; border-color: #b5e3b9; color: #2c7a35; }
-.orchard-how { display: flex; align-items: center; gap: 6px; justify-content: center; font-size: 12.5px; color: var(--ink-soft); margin-top: 8px; flex-wrap: wrap; }
-.orchard-how .gl { font-size: 18px; }
-.orchard-how .ic { font-size: 12px; }
 .alert-pill.bad { background: #ffeceb; border-color: #ffb1ab; color: #c0392b; }
 .tip .btn { margin-top: 6px; }
 .tip .ic { font-size: 16px; }
@@ -914,8 +911,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .sheet-station .alert-pill b { font-size: 14.5px; }
   .sheet-station .staff-strip { min-height: 38px; margin-top: 6px; padding: 3px 6px; }
   .sheet-station .staff-strip .sc-ava { width: 28px; height: 28px; }
-  .sheet-station .orchard-how { margin-top: 4px; }
-  .sheet-station .buy-row { margin-top: 8px; gap: 8px; }
+  .sheet-station   .sheet-station .buy-row { margin-top: 8px; gap: 8px; }
   .sheet-station .buy-row .amounts { gap: 4px; }
   .sheet-station .buy-row .amt { padding: 4px 8px; }
   .sheet-station .buy { padding: 8px; font-size: 16px; }

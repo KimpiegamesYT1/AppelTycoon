@@ -332,10 +332,8 @@ export class UI {
           chips.push(chip('Machines willen', rate(demand) + '/s', '', demand > E.orchardRate(s) * 1.02 ? 'bad' : ''));
           // als percentage: grote getallen (45,6K/50,0K) passen niet in het vakje
           chips.push(chip('Appelbak', `${Math.min(100, Math.round((s.apples / prod.binCap) * 100))}%`, prod.binFull ? 'vol' : ''));
-          // uitleg van de keten in één regel: bomen -> plukkers -> appelbak -> machines
-          extra = `<div class="orchard-how">${glyph('orchard')} Bomen ${icon('right')} plukkers ${icon('right')} appelbak ${icon('right')} machines</div>`;
-          if (prod.binFull) extra += warn('Genoeg appels! Upgrade eerst je machines.', goTo(this.cheapestLine(), 'Machines'), 'ok');
-          else if (demand > E.orchardRate(s) * 1.02) extra += warn('Te weinig appels: upgrade de boomgaard!');
+          if (prod.binFull) extra = warn('Genoeg appels! Upgrade eerst je machines.', goTo(this.cheapestLine(), 'Machines'), 'ok');
+          else if (demand > E.orchardRate(s) * 1.02) extra = warn('Te weinig appels: upgrade de boomgaard!');
         } else if (st.kind === 'sales') {
           title = SALES.name;
           const trucks = E.truckCount(level);
