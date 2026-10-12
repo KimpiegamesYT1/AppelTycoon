@@ -637,14 +637,9 @@ export class World {
     // inpaktafel waar de verzamelband eindigt
     db.box(1.5, 0.75, 1.4, M.C.metalDark, DEPOT_IN + 0.45, 0.3, FEED_Z);
     for (let k = 0; k < 4; k++) db.cyl(0.07, 1.3, M.C.metal, DEPOT_IN - 0.1 + k * 0.35, 1.0, FEED_Z - 0.65, { seg: 6, rx: Math.PI / 2 });
-    // laadplein naar de weg (altijd de volle lengte, zodat de vrachtwagens kunnen keren)
-    db.box(ROAD_X - 2.45 - DX1, 0.17, DZ1 - DZ0, M.C.road, (DX1 + ROAD_X - 2.45) / 2, 0, DEPOT.z);
-    for (let k = 0; k < 6; k++) db.box(4.6, 0.02, 0.1, 0xffffff, DX1 + 2.6, 0.17, dockZ(k) + 1.55);
-    // bouwplaats voor de volgende laadplek
-    if (z1 < DZ1 - 0.5) {
-      db.box(dw, 0.12, DZ1 - z1 - 0.4, 0xc9b48a, DEPOT.x, 0, (z1 + DZ1) / 2 + 0.2);
-      for (let x = DX0 + 0.5; x < DX1; x += 1.2) db.box(0.6, 0.05, 0.12, 0xffc43d, x, 0.13, z1 + 0.6);
-    }
+    // laadplein naar de weg: groeit mee met het aantal laadplekken
+    db.box(ROAD_X - 2.45 - DX1, 0.17, dd, M.C.road, (DX1 + ROAD_X - 2.45) / 2, 0, cz);
+    for (let k = 0; k < nDocks - 1; k++) db.box(4.6, 0.02, 0.1, 0xffffff, DX1 + 2.6, 0.17, dockZ(k) + 1.8);
     // lampen aan de achterwand
     const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff1b8 });
     if (decor >= 1) {
@@ -730,7 +725,7 @@ export class World {
       }
       this.docks.push({ door, pallet: p, crates, staged: 0, userData: door.userData });
     }
-    const sh = M.hitBox(dw + 7, 5, DZ1 - DZ0, DEPOT.x + 3.5, 0, DEPOT.z);
+    const sh = M.hitBox(dw + 7, 5, dd, DEPOT.x + 3.5, 0, cz);
     sh.userData.station = { kind: 'sales' };
     sh.userData.depot = true;
     g.add(sh);
