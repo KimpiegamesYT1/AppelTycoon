@@ -2,7 +2,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import * as M from './models.js';
 import { LINES, TIERS, TRUCK, PICKER_LEVELS } from './config.js';
-import { truckCount, truckCapacity } from './economy.js';
+import { truckCount, truckCapacity, starCount } from './economy.js';
 
 const LINE_SPACING = 5.5;
 const LZ0 = 2.5;
@@ -777,9 +777,10 @@ export class World {
       }
       const o = this.lineObjs[i];
       if (o) {
-        const ms = state.lines[i];
-        o.worker2.visible = ms >= 25;
-        o.crates.visible = ms >= 50;
+        // met elke ster ziet de lijn er drukker uit
+        const stars = starCount(state.lines[i]);
+        o.worker2.visible = stars >= 2;
+        o.crates.visible = stars >= 3;
       }
       if (this.slotMarks[i]) {
         const show = !unlocked;

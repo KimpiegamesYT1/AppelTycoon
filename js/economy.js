@@ -1,10 +1,10 @@
 // Pure spellogica zonder DOM of 3D, zodat de balans-simulatie dezelfde code gebruikt.
 import {
-  MILESTONES, ORCHARD, SALES, LINES, LINE_GROWTH, LINE_PRICE_GROWTH, TIERS, START_MONEY,
-  RESEARCH, INVESTOR_BONUS, INVESTOR_BASE, INVESTOR_POWER, DOCK_LEVELS, PICKER_LEVELS, TRUCK,
+  STARS, ORCHARD, SALES, LINES, LINE_GROWTH, TIERS, START_MONEY,
+  UPGRADES, INVESTOR_BONUS, INVESTOR_BASE, INVESTOR_POWER, DOCK_LEVELS, PICKER_LEVELS, TRUCK,
 } from './config.js';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export function newState() {
   return {
@@ -19,9 +19,10 @@ export function newState() {
     sales: 1,
     lines: LINES.map(() => 0),   // 0 = nog niet gebouwd
     apples: 0,           // appels in de appelbak
-    goods: 0,            // goederen in het magazijn (basiswaarde)
-    trucks: [],          // per vrachtwagen: t = seconden in de rit, load = lading, last = vorige lading (deel van vol)
-    research: {},
+    goods: 0,            // kratten in het magazijn
+    goodsValue: 0,       // waarde van die kratten (zonder prijsbonussen)
+    trucks: [],          // per vrachtwagen: t = seconden in de rit, load = kratten, value = waarde, last = vorige lading (deel van vol)
+    research: {},        // gekochte upgrades (id -> true)
     goal: 0,
     tutorial: 0,
     stats: { golden: 0, upgrades: 0 },
@@ -31,28 +32,35 @@ export function newState() {
   };
 }
 
-export function milestoneCount(level) {
+export function starCount(level) {
   let n = 0;
-  for (const m of MILESTONES) if (level >= m) n++;
+  for (const m of STARS) if (level >= m) n++;
   return n;
 }
 
-export function prevMilestone(level) {
+export function prevStar(level) {
   let p = 1;
-  for (const m of MILESTONES) if (level >= m) p = m;
+  for (const m of STARS) if (level >= m) p = m;
   return p;
 }
 
-export function nextMilestone(level) {
-  for (const m of MILESTONES) if (level < m) return m;
+export function nextStar(level) {
+  for (const m of STARS) if (level < m) return m;
   return null;
 }
 
-const milestoneMult = (level) => 2 ** milestoneCount(level);
+// Wat een ster oplevert. Lijnen: snelheid x2 (dus ook dubbel zoveel appels en kratten).
+// Boomgaard: een extra plukker (alleen te zien). Vrachtwagens: een extra laadplek met vrachtwagen.
+export function starReward(kind) {
+  if (kind === 'orchard') return { type: 'picker', text: 'Extra plukker' };
+  if (kind === 'sales') return { type: 'truck', text: 'Extra vrachtwagen' };
+  return { type: 'speed', text: 'Snelheid x2' };
+}
 
-export function researchMult(state, target) {
+// Vermenigvuldiger uit gekochte upgrades voor een doel ('fresh', 'orchard', 'transport', 'all') en type.
+export function upgradeMult(state, target, type = 'price') {
   let m = 1;
-  for (const r of RESEARCH) if (state.research[r.id] && r.target === target) m *= r.mult;
+  for (const u of UPGRADES) if (state.research[u.id] && u.target === target && u.type === type) m *= u.mult;
   return m;
 }
 
@@ -74,23 +82,25 @@ export function investorMult(state) {
 
 
 export function orchardRate(state, level = state.orchard) {
-  return ORCHARD.baseRate * level * milestoneMult(level) * tierOrchardMult(state) * researchMult(state, 'orchard');
+  return ORCHARD.baseRate * ORCHARD.levelGrowth ** (level - 1) * tierOrchardMult(state) * upgradeMult(state, 'orchard', 'speed');
 }
 
-// Waarde van één product (zonder prijsbonussen van onderzoek/uitbreidingen/investeerders).
-// Stijgt met het level van de lijn: betere kwaliteit, betere verpakking.
-export function lineValue(i, level) {
-  return LINES[i].value * LINE_PRICE_GROWTH ** (Math.max(1, level) - 1);
+// Prijs van één product (zonder de algemene prijsbonussen van uitbreidingen, reclame en investeerders).
+// Elk level telt de basisprijs erbij op; prijs-upgrades vermenigvuldigen.
+export function lineValue(state, i, level = state.lines[i]) {
+  const L = Math.max(1, level);
+  return LINES[i].value * L * upgradeMult(state, LINES[i].id, 'price');
 }
 
+// Stuks per seconde van een lijn: alleen sterren en upgrades maken een machine sneller.
 export function lineRate(state, i, level = state.lines[i]) {
   if (level <= 0) return 0;
-  return LINES[i].rate * level * milestoneMult(level) * researchMult(state, LINES[i].id);
+  return LINES[i].rate * 2 ** starCount(level) * upgradeMult(state, LINES[i].id, 'speed');
 }
 
-// Hoeveel goederen (basiswaarde per seconde) de vrachtwagens wegbrengen.
+// Hoeveel kratten per seconde de vrachtwagens wegbrengen.
 export function transportRate(state, level = state.sales) {
-  return SALES.baseRate * level * SALES.rateGrowth ** (level - 1) * truckCount(level) * researchMult(state, 'transport');
+  return SALES.baseRate * SALES.levelGrowth ** (level - 1) * truckCount(level) * upgradeMult(state, 'transport', 'speed');
 }
 
 export function binCapacity(state, level = state.orchard) {
@@ -103,7 +113,7 @@ export function storeCapacity(state, level = state.sales) {
 
 // Prijsvermenigvuldiger: onderzoek, uitbreidingen en investeerders.
 export function priceMult(state) {
-  return researchMult(state, 'all') * tierIncomeMult(state) * investorMult(state);
+  return upgradeMult(state, 'all', 'price') * tierIncomeMult(state) * investorMult(state);
 }
 
 // Aantal laadplekken (en vrachtwagens) bij een level.
@@ -119,7 +129,7 @@ export function pickerLevel(level) {
   return PICKER_LEVELS.find((l) => level < l) || null;
 }
 
-// Hoeveel goederen (basiswaarde) één vrachtwagen per rit meeneemt.
+// Hoeveel kratten één vrachtwagen per rit meeneemt.
 export function truckCapacity(state, level = state.sales) {
   return (transportRate(state, level) / truckCount(level)) * TRUCK.cycle;
 }
@@ -140,14 +150,18 @@ export function nextDockLevel(level) {
 }
 
 // Verdeelt de appels over de lijnen: duurste producten (per appel) eerst.
-const lineOrder = LINES.map((l, i) => i).sort((a, b) => LINES[b].value / LINES[b].apples - LINES[a].value / LINES[a].apples);
+function lineOrder(state) {
+  const idx = LINES.map((l, i) => i).filter((i) => state.lines[i] > 0);
+  const v = idx.map((i) => lineValue(state, i) / LINES[i].apples);
+  return idx.map((i, k) => [i, v[k]]).sort((a, b) => b[1] - a[1]).map((x) => x[0]);
+}
 
 // Huidige stroom door de keten, rekening houdend met wat er in de appelbak en het magazijn ligt.
 // Per lijn: status 'ok' | 'apples' (te weinig appels) | 'full' (magazijn vol).
+// Alles in stuks (kratten); income in euro per seconde.
 export function computeProduction(state, now = 0, steady = false) {
-  const sp = 1;
-  const supply = orchardRate(state) * sp;
-  const transport = transportRate(state) * sp;
+  const supply = orchardRate(state);
+  const transport = transportRate(state);
   const binCap = binCapacity(state);
   const storeCap = storeCapacity(state);
   const binFull = !steady && state.apples >= binCap * 0.995;
@@ -156,22 +170,25 @@ export function computeProduction(state, now = 0, steady = false) {
   let applesLeft = !steady && state.apples > 1 ? Infinity : supply;
   // is het magazijn vol, dan kan er alleen zoveel bij als de vrachtwagens weghalen
   // in de evenwichtsberekening begrenzen de vrachtwagens altijd wat er verkocht kan worden
-  let outLeft = storeFull || steady ? transport : Infinity;
+  const outLeft = storeFull || steady ? transport : Infinity;
   const pm = priceMult(state);
-  const lines = LINES.map(() => ({ rate: 0, max: 0, efficiency: 0, income: 0, status: 'off' }));
+  const lines = LINES.map(() => ({ rate: 0, max: 0, potential: 0, efficiency: 0, income: 0, price: 0, status: 'off' }));
   let output = 0;
+  let value = 0;
   let used = 0;
   let potential = 0;
+  let potentialValue = 0;
   // 1) appels verdelen: duurste producten (per appel) eerst
   const want = [];
-  for (const i of lineOrder) {
-    const max = lineRate(state, i) * sp;
+  for (const i of lineOrder(state)) {
+    const max = lineRate(state, i);
     if (max <= 0) continue;
     const l = LINES[i];
     const rate = Math.min(max, applesLeft / l.apples);
     applesLeft -= rate * l.apples;
-    const v = lineValue(i, state.lines[i]);
-    potential += rate * v;
+    const v = lineValue(state, i);
+    potential += rate;
+    potentialValue += rate * v;
     want.push({ i, max, rate, v, status: rate < max * 0.98 ? 'apples' : 'ok' });
   }
   // 2) kan het magazijn/vervoer het niet aan, dan krijgen alle lijnen naar verhouding minder ruimte
@@ -180,15 +197,17 @@ export function computeProduction(state, now = 0, steady = false) {
     const l = LINES[w.i];
     const rate = w.rate * f;
     used += rate * l.apples;
-    output += rate * w.v;
-    lines[w.i] = { rate, max: w.max, potential: w.rate, efficiency: rate / w.max, income: rate * w.v * pm, status: f < 0.999 ? 'full' : w.status };
+    output += rate;
+    value += rate * w.v;
+    lines[w.i] = { rate, max: w.max, potential: w.rate, efficiency: rate / w.max, income: rate * w.v * pm, price: w.v * pm, status: f < 0.999 ? 'full' : w.status };
   }
   const sold = steady ? Math.min(output, transport) : (state.goods > 1 ? transport : Math.min(output, transport));
   const picking = binFull ? Math.min(supply, used) : supply;
   return {
     supply, picking, used, output, potential, transport, sold, binCap, storeCap, binFull, storeFull, lines,
     spare: Math.max(0, supply - used),
-    income: sold * pm,
+    potentialIncome: potentialValue * pm,
+    income: value * pm,
   };
 }
 
@@ -197,13 +216,11 @@ export function computeProduction(state, now = 0, steady = false) {
 export function chainBalance(state) {
   const p = computeProduction(state, 0, true);
   let machines = 0;
-  LINES.forEach((l, i) => { machines += lineRate(state, i) * l.apples; });
-  let vpa = p.used > 0 ? p.output / p.used : 0;
-  if (!vpa) {
-    const i = state.lines.findIndex((x) => x > 0);
-    vpa = i >= 0 ? LINES[i].value / LINES[i].apples : 1;
-  }
-  const out = { pick: p.supply, machines, transport: p.transport / vpa };
+  let pieces = 0;
+  LINES.forEach((l, i) => { const r = lineRate(state, i); machines += r * l.apples; pieces += r; });
+  // appels per krat: gemiddelde van wat er nu gemaakt wordt
+  const apk = p.output > 0 ? p.used / p.output : pieces > 0 ? machines / pieces : 1;
+  const out = { pick: p.supply, machines, transport: p.transport * apk };
   out.weakest = machines <= 0 ? 'machines'
     : Object.entries({ pick: out.pick, machines: out.machines, transport: out.transport }).sort((a, b) => a[1] - b[1])[0][0];
   return out;
@@ -287,16 +304,16 @@ export function buyTier(state) {
   return true;
 }
 
-export function researchAvailable(state, r) {
-  if (state.research[r.id]) return false;
-  const li = LINES.findIndex((l) => l.id === r.req);
+export function upgradeAvailable(state, u) {
+  if (state.research[u.id]) return false;
+  const li = LINES.findIndex((l) => l.id === u.req);
   return li < 0 || state.lines[li] > 0;
 }
 
-export function buyResearch(state, id) {
-  const r = RESEARCH.find((x) => x.id === id);
-  if (!r || !researchAvailable(state, r) || state.money < r.cost) return false;
-  state.money -= r.cost;
+export function buyUpgradeItem(state, id) {
+  const u = UPGRADES.find((x) => x.id === id);
+  if (!u || !upgradeAvailable(state, u) || state.money < u.cost) return false;
+  state.money -= u.cost;
   state.research[id] = true;
   return true;
 }
@@ -349,13 +366,15 @@ export function earn(state, amount) {
 // events (optioneel) krijgt per vertrek { truck, amount }.
 export function tick(state, dt, now = 0, events = null) {
   ensureTrucks(state);
+  if (!Number.isFinite(state.goodsValue)) state.goodsValue = 0;
   const supply = orchardRate(state);
   const binCap = binCapacity(state);
   const storeCap = storeCapacity(state);
   const pm = priceMult(state);
   const cap = truckCapacity(state);
+  const order = lineOrder(state);
   const rates = LINES.map((_, i) => lineRate(state, i));
-  const vals = LINES.map((_, i) => lineValue(i, state.lines[i]));
+  const vals = LINES.map((_, i) => (state.lines[i] > 0 ? lineValue(state, i) : 0));
   const L = TRUCK.loadTime;
   let left = dt;
   let earned = 0;
@@ -366,30 +385,36 @@ export function tick(state, dt, now = 0, events = null) {
     // eerst appels verdelen, daarna de ruimte in het magazijn naar verhouding
     const space = storeCap - state.goods;
     let applesLeft = state.apples;
-    let value = 0;
+    let pieces = 0;
     const take = [];
-    for (const i of lineOrder) {
-      if (rates[i] <= 0) continue;
+    for (const i of order) {
       const l = LINES[i];
       const n = Math.max(0, Math.min(rates[i] * h, applesLeft / l.apples));
       applesLeft -= n * l.apples;
-      value += n * vals[i];
+      pieces += n;
       take.push([i, n]);
     }
-    const f = value > space ? Math.max(0, space) / value : 1;
+    const f = pieces > space ? Math.max(0, space) / pieces : 1;
     for (const [i, n] of take) {
       state.apples -= n * f * LINES[i].apples;
-      state.goods += n * f * vals[i];
+      state.goods += n * f;
+      state.goodsValue += n * f * vals[i];
     }
     state.apples = Math.max(0, state.apples);
     state.trucks.forEach((tr, k) => {
       const t0 = tr.t;
       tr.t += h;
       if (t0 < L) {
-        // laden aan de deur
+        // laden aan de deur; elke krat neemt zijn deel van de waarde mee
         const take = Math.max(0, Math.min((cap * h) / L, state.goods, cap - tr.load));
+        if (take > 0) {
+          const v = state.goods > 0 ? state.goodsValue * (take / state.goods) : 0;
+          tr.value = (tr.value || 0) + v;
+          state.goodsValue = Math.max(0, state.goodsValue - v);
+        }
         tr.load += take;
         state.goods -= take;
+        if (state.goods <= 1e-9) { state.goods = 0; state.goodsValue = 0; }
         if (tr.t >= L) {
           // nooit leeg vertrekken: wacht tot hij half vol is (of al 8 s met lading staat te wachten)
           tr.wait = (tr.wait || 0) + (tr.load > 0 ? tr.t - L : 0);
@@ -397,11 +422,12 @@ export function tick(state, dt, now = 0, events = null) {
             tr.t = L - 1e-6;
           } else {
             // vertrek: de lading is verkocht
-            const amount = tr.load * pm;
+            const amount = (tr.value || 0) * pm;
             earned += amount;
             tr.last = cap > 0 ? tr.load / cap : 0;
             if (events && amount > 0) events.push({ truck: k, amount });
             tr.load = 0;
+            tr.value = 0;
             tr.wait = 0;
           }
         }

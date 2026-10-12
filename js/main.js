@@ -4,7 +4,7 @@ import { UI } from './ui.js';
 import { sfx, setSound, initMusic, setMusic } from './audio.js';
 import { glyph } from './icons.js';
 import { TUTORIAL } from './tutorial.js';
-import { LINES, TIERS, GOLDEN, OFFLINE, INVESTOR_BONUS } from './config.js';
+import { LINES, TIERS, GOLDEN, OFFLINE, INVESTOR_BONUS, UPGRADES, PICKER_LEVELS, DOCK_LEVELS } from './config.js';
 import { goalAt, goalProgress, goalReward } from './goals.js';
 import { money, fmt } from './format.js';
 
@@ -12,6 +12,14 @@ const SAVE_KEY = 'appeltycoon.save.v1';
 
 function migrate(d) {
   const base = E.newState();
+  // versie 2 had een andere economie (zonder sterren): nieuwe ronde, maar investeerders en statistieken blijven
+  if (d.version === 2) {
+    base.settings = { ...base.settings, ...(d.settings || {}) };
+    for (const k of ['investors', 'prestiges', 'totalEarned', 'playTime']) if (Number.isFinite(d[k])) base[k] = d[k];
+    base.stats = { ...base.stats, ...(d.stats || {}) };
+    base.upgradedFrom = 2;
+    return base;
+  }
   // versie 1 had een heel andere economie: begin opnieuw, maar houd de instellingen (muziek weer aan)
   if (d.version !== E.SAVE_VERSION) {
     base.settings = { ...base.settings, ...(d.settings || {}), music: true };
@@ -24,7 +32,7 @@ function migrate(d) {
   s.research = d.research || {};
   s.lines = LINES.map((_, i) => (Array.isArray(d.lines) && Number.isFinite(d.lines[i]) ? d.lines[i] : base.lines[i]));
   if (!Array.isArray(s.trucks)) s.trucks = [];
-  for (const k of ['money', 'runEarned', 'totalEarned', 'investors', 'orchard', 'sales', 'tier', 'apples', 'goods', 'tutorial']) {
+  for (const k of ['money', 'runEarned', 'totalEarned', 'investors', 'orchard', 'sales', 'tier', 'apples', 'goods', 'goodsValue', 'tutorial']) {
     if (!Number.isFinite(s[k])) s[k] = base[k];
   }
   return s;
@@ -43,7 +51,9 @@ function load() {
 const loaded = load();
 const state = loaded || E.newState();
 const firstVisit = !loaded || state.migrated;
+const upgradedFrom = state.upgradedFrom;
 delete state.migrated;
+delete state.upgradedFrom;
 // standaard scherp; alleen als de speler zelf Laag kiest blijft dat bewaard
 if (state.settings.quality === 'auto' || !state.settings.qualityChosen) state.settings.quality = 'high';
 setSound(state.settings.sound);
@@ -68,15 +78,24 @@ const game = {
   upgrade(kind, i, amount) {
     const st = kind === 'line' ? { kind, i } : { kind };
     const before = E.stationLevel(state, kind, i);
+    const priceBefore = kind === 'line' ? E.lineValue(state, i) * E.priceMult(state) : 0;
     const q = E.buyUpgrade(state, kind, i, amount);
     if (!q) { sfx.error(); return false; }
     state.stats.upgrades += q.count;
     const after = E.stationLevel(state, kind, i);
-    if (E.milestoneCount(after) > E.milestoneCount(before) && kind !== 'sales') {
+    // een ster: lijnen worden twee keer zo snel, de boomgaard krijgt een plukker, de vrachtwagens een laadplek
+    const marks = kind === 'line' ? null : kind === 'orchard' ? PICKER_LEVELS : DOCK_LEVELS;
+    const count = (lv) => (marks ? marks.filter((m) => lv >= m).length : E.starCount(lv));
+    const stars = count(after) - count(before);
+    if (stars > 0) {
       sfx.milestone();
-      ui.toast(`Mijlpaal! ${kind === 'orchard' ? 'Boomgaard' : LINES[i].name} produceert x2`, 'medal');
-      world.burst(world.stationPos(st).setY(3), 60);
-    } else sfx.buy();
+      const name = kind === 'line' ? LINES[i].name : kind === 'orchard' ? 'Boomgaard' : 'Vrachtwagens';
+      ui.starBanner(name, E.starReward(kind).text, count(after), kind);
+      world.burst(world.stationPos(st).setY(3), 80);
+    } else {
+      sfx.levelUp(ui.starProgress(kind, after));
+    }
+    if (kind === 'line') ui.floatAtStation(st, '+' + money(E.lineValue(state, i) * E.priceMult(state) - priceBefore));
     world.bounceStation(st);
     return true;
   },
@@ -102,9 +121,10 @@ const game = {
   },
 
   buyResearch(id) {
-    if (!E.buyResearch(state, id)) { sfx.error(); return false; }
+    if (!E.buyUpgradeItem(state, id)) { sfx.error(); return false; }
     sfx.unlock();
-    ui.toast('Onderzoek voltooid!', 'flask');
+    const u = UPGRADES.find((x) => x.id === id);
+    ui.toast(`${u.name}: ${ui.upgradeDesc(u)}!`, 'up');
     return true;
   },
 
@@ -218,6 +238,7 @@ const gap0 = (Date.now() - state.lastTick) / 1000;
 state.lastTick = Date.now();
 if (!firstVisit && gap0 > 30) handleGap(gap0);
 if (firstVisit) ui.welcome();
+else if (upgradedFrom) ui.newVersion();
 
 let lastFrame = performance.now();
 let renderAcc = 0;

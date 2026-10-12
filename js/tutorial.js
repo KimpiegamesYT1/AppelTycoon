@@ -11,22 +11,27 @@ export const TUTORIAL = [
     done: (s) => s.runEarned >= 6,
   },
   {
-    text: 'Upgrade je machine zodat hij sneller werkt. Tik erop en kies Upgrade.',
+    text: 'Tik op je machine en upgrade hem. Elk level maakt je kratjes meer waard.',
     target: { kind: 'line', i: 0 },
-    done: (s) => s.lines[0] >= 3,
+    done: (s) => s.lines[0] >= 5,
   },
   {
-    text: 'Je machine kan nu meer aan dan de boomgaard plukt. Upgrade de boomgaard.',
+    text: 'Op level 10 krijgt je machine een ster: hij wordt twee keer zo snel!',
+    target: { kind: 'line', i: 0 },
+    done: (s) => s.lines[0] >= 10,
+  },
+  {
+    text: 'Een snellere machine heeft meer appels nodig. Upgrade de boomgaard tot de appelbak weer volloopt.',
     target: { kind: 'orchard' },
     done: (s) => s.orchard >= 3,
   },
   {
-    text: 'Kunnen de vrachtwagens het niet bijhouden, dan loopt het magazijn vol en staat alles stil. Upgrade de vrachtwagens.',
+    text: 'En meer kratjes betekent: meer vrachtwagenruimte. Upgrade de vrachtwagens.',
     target: { kind: 'sales' },
-    done: (s) => s.sales >= 2,
+    done: (s) => s.sales >= 3,
   },
   {
-    text: 'Houd de keten in balans: boomgaard, machines en vrachtwagens. Een volle appelbak of een vol magazijn betekent: upgraden! Volg nu de doelen bovenaan.',
+    text: 'Zo werkt het: upgraden voor geld, sterren voor snelheid, en de keten laten meegroeien. In het menu Upgrades vind je flinke bonussen. Volg nu de doelen bovenaan.',
     target: null,
     button: 'Aan de slag',
   },

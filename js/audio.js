@@ -53,6 +53,13 @@ function tone(freq, start, dur, type = 'sine', vol = 0.12, slide = 0) {
 export const sfx = {
   click() { if (enabled) tone(660, 0, 0.06, 'triangle', 0.07); },
   buy() { if (enabled) { tone(520, 0, 0.08, 'triangle', 0.09); tone(780, 0.05, 0.1, 'triangle', 0.09); } },
+  // level omhoog: de toon stijgt naarmate de volgende ster dichterbij komt (p = 0..1)
+  levelUp(p = 0) {
+    if (!enabled) return;
+    const f = 440 * 2 ** (Math.min(1, Math.max(0, p)) * 1.25);
+    tone(f, 0, 0.07, 'triangle', 0.09);
+    tone(f * 1.5, 0.045, 0.1, 'triangle', 0.08);
+  },
   milestone() { if (enabled) [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.08, 0.2, 'triangle', 0.08)); },
   unlock() { if (enabled) [392, 523, 659, 784].forEach((f, i) => tone(f, i * 0.07, 0.2, 'triangle', 0.1)); },
   coin() { if (enabled) { tone(988, 0, 0.08, 'sine', 0.06); tone(1319, 0.06, 0.18, 'sine', 0.06); } },

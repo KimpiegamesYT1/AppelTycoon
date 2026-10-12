@@ -441,15 +441,23 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   border-top-color: rgba(255, 250, 242, 0.95);
 }
 .lb-icon { font-size: 18px; }
-.label .up { color: #fff; background: var(--green); border-radius: 50%; width: 18px; height: 18px; display: grid; place-items: center; font-size: 12px; animation: bob 0.8s infinite; }
-.label .up .ic { stroke-width: 3; }
+.label .up {
+  color: #fff; background: var(--red); border-radius: 50%;
+  width: 20px; height: 20px; display: grid; place-items: center; font-size: 13px;
+  box-shadow: 0 2px 0 var(--red-d);
+  animation: arrowBob 0.7s ease-in-out infinite;
+}
+.label .up .ic { stroke-width: 3.4; }
+.lb-star { display: inline-flex; align-items: center; gap: 1px; color: var(--gold-d); font-size: 12px; }
+.lb-star .ic { color: var(--gold); font-size: 13px; }
 .tier-ic { color: var(--orange-d); }
 .label .warn-dot { color: #fff; background: var(--orange); border-radius: 50%; width: 18px; height: 18px; display: grid; place-items: center; font-size: 12px; }
-.label.can { border-color: var(--green); }
 .label .warn-dot.bad { background: var(--red); }
 .lb-bar { width: 38px; height: 7px; border-radius: 4px; background: #e6dccb; overflow: hidden; display: inline-block; }
 .lb-bar i { display: block; height: 100%; background: var(--green); transition: width 0.25s; }
 .lb-bar.full i { background: var(--red); }
+.lb-bar.star { width: 30px; }
+.lb-bar.star i { background: var(--blue); }
 .lb-full { color: var(--red); font-size: 11px; }
 .mini-bar { width: 42px; height: 7px; border-radius: 4px; background: #e6dccb; overflow: hidden; display: inline-block; vertical-align: middle; }
 .mini-bar i { display: block; height: 100%; background: var(--green); }
@@ -476,6 +484,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 .float.cash { color: #b6ffb0; font-size: 16px; }
 .float.gold { color: #ffe066; font-size: 24px; }
+.float.price { color: #fff3a6; font-size: 17px; animation-duration: 1.1s; }
 @keyframes floatUp {
   0% { opacity: 0; transform: translate(-50%, -30%) scale(0.7); }
   15% { opacity: 1; transform: translate(-50%, -60%) scale(1.05); }
@@ -647,3 +656,61 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .goal.open { position: fixed; left: 10px; right: 10px; top: calc(66px + var(--safe-t)); max-width: none; z-index: 15; animation: pop 0.2s ease-out; }
   #toasts { top: calc(70px + var(--safe-t)); }
 }
+
+/* ---------- Stationkaart (Eatventure-stijl) ---------- */
+
+.lv-head { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 2px 0 4px; }
+.stars { display: flex; gap: 3px; align-items: center; font-size: 26px; }
+.stars .st { color: #e3dccd; display: inline-flex; }
+.stars .st.on { color: var(--gold); filter: drop-shadow(0 2px 0 var(--gold-d)); }
+.stars.row-1 .st.on { color: #ff8a3d; filter: drop-shadow(0 2px 0 #c95a12); }
+.stars.row-2 .st.on { color: #b06cff; filter: drop-shadow(0 2px 0 #7a3fc4); }
+.stars.row-3 .st.on { color: #3dc9ff; filter: drop-shadow(0 2px 0 #1b8fc0); }
+.st-count { font-size: 14px; font-weight: 700; background: var(--panel-2); border-radius: 8px; padding: 1px 7px; margin-left: 4px; }
+.star-bar { width: 100%; display: flex; align-items: center; gap: 8px; }
+.star-bar .bar { flex: 1; height: 14px; border-radius: 8px; background: #ebe3d4; overflow: hidden; box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.06); }
+.star-bar .bar i { display: block; height: 100%; background: linear-gradient(180deg, #6fd1ff, var(--blue)); border-radius: 8px; transition: width 0.18s; }
+.sb-goal { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
+.sb-goal .ic { color: var(--gold); font-size: 15px; }
+.sb-goal b { color: var(--ink); }
+
+.chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin: 10px 0 6px; }
+.chips.n4 { grid-template-columns: 1fr 1fr; }
+.chip-stat { background: #fff; border: 2px solid var(--line); border-radius: 14px; padding: 7px 10px; display: flex; flex-direction: column; min-width: 0; }
+.chip-stat small { font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+.chip-stat b { font-size: 19px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip-stat em { font-style: normal; font-size: 13px; color: var(--green-d); font-weight: 700; white-space: nowrap; }
+.chip-stat.bad { border-color: #ffc9b8; background: #fff5f0; }
+.chip-stat.bad em { color: var(--orange-d); }
+
+.card.upg { padding: 8px 8px 8px 10px; }
+.card.upg.can { border-color: #9fcbff; background: #f4f9ff; }
+.upg-ic { font-size: 30px; width: 36px; display: grid; place-items: center; }
+.card.upg .btn { min-width: 92px; padding: 10px 10px; font-size: 15px; }
+.gain { color: var(--green-d); font-weight: 700; }
+
+/* grote melding bij een nieuwe ster */
+.star-banner {
+  position: fixed; left: 50%; top: calc(26% + var(--safe-t));
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(180deg, #fffaf0, #fff1d0);
+  border: 3px solid var(--gold); border-radius: 20px;
+  padding: 10px 18px 10px 12px;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.15), 0 10px 30px rgba(0, 0, 0, 0.2);
+  z-index: 25; pointer-events: none;
+  animation: bannerIn 0.45s cubic-bezier(0.2, 1.6, 0.4, 1);
+  max-width: calc(100% - 24px);
+}
+.star-banner.out { opacity: 0; transform: translate(-50%, -16px); transition: opacity 0.4s, transform 0.4s; }
+.sbn-star { position: relative; font-size: 48px; color: var(--gold); display: grid; place-items: center; filter: drop-shadow(0 3px 0 var(--gold-d)); animation: starSpin 0.8s ease-out; }
+.sbn-star span { position: absolute; font-size: 17px; font-weight: 700; color: #6b4300; top: 52%; transform: translateY(-50%); }
+.sbn-text { display: flex; flex-direction: column; line-height: 1.15; }
+.sbn-text b { font-size: 22px; }
+.sbn-text small { font-size: 14px; color: var(--ink-soft); }
+.sbn-text em { font-style: normal; font-size: 14px; color: var(--orange-d); font-weight: 700; margin-top: 2px; }
+@keyframes bannerIn { from { opacity: 0; transform: translate(-50%, -20px) scale(0.6); } }
+@keyframes starSpin { from { transform: rotate(-200deg) scale(0.3); } }
+
+.buy.pop { animation: buyPop 0.18s ease-out; }
+@keyframes buyPop { 50% { transform: scale(1.04); } }
