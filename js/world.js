@@ -1,7 +1,7 @@
 // De 3D-wereld: camera, fabriek, boomgaard, banden met producten, vrachtwagens.
 import * as THREE from '../vendor/three.module.min.js';
 import * as M from './models.js';
-import { LINES, TIERS, TRUCK, PICKER_LEVELS } from './config.js';
+import { LINES, TIERS, TRUCK, PICKER_LEVELS, BELT_GOLD } from './config.js';
 import { truckCount, truckCapacity, starCount, vehicleStage } from './economy.js';
 
 const LINE_SPACING = 5.5;
@@ -131,8 +131,14 @@ class Belt {
       const t = this.lengths[i] > 0 ? Math.min(1, rest / this.lengths[i]) : 0;
       const ry = Math.atan2(-(b.z - a.z), b.x - a.x);
       // een vers product groeit even op als het uit de machine komt
-      const sc = it.fresh && it.d < 0.7 ? 0.45 + 0.55 * Math.sin((it.d / 0.7) * Math.PI / 2) : 1;
-      it.pool.push(a.x + (b.x - a.x) * t, BELT_Y, a.z + (b.z - a.z) * t, ry, sc);
+      let sc = it.fresh && it.d < 0.7 ? 0.45 + 0.55 * Math.sin((it.d / 0.7) * Math.PI / 2) : 1;
+      if (it.gold) sc *= 1.35;
+      // niet alles ligt keurig in het midden: een beetje opzij en scheef
+      if (it.jx === undefined) { it.jx = (Math.random() - 0.5) * 0.16; it.jr = (Math.random() - 0.5) * 0.5; }
+      const len = this.lengths[i] || 1;
+      const nx = -(b.z - a.z) / len;
+      const nz = (b.x - a.x) / len;
+      it.pool.push(a.x + (b.x - a.x) * t + nx * it.jx, BELT_Y, a.z + (b.z - a.z) * t + nz * it.jx, ry + it.jr, sc);
     }
   }
 }
@@ -310,6 +316,11 @@ export class World {
     this.scene.add(this.itemGroup);
     this.applePool = new Pool(this.itemGroup, M.itemGeometry('apple'), 600);
     this.productPools = LINES.map((l) => new Pool(this.itemGroup, M.itemGeometry(l.id), 260));
+    // gouden appel op de band en het gouden product dat de machine ervan maakt
+    const shiny = new THREE.MeshLambertMaterial({ color: 0xffc83d, emissive: 0x8a5a00, flatShading: true });
+    this.goldApplePool = new Pool(this.itemGroup, M.itemGeometry('apple'), 4, shiny);
+    this.goldProductPools = LINES.map((l) => new Pool(this.itemGroup, M.itemGeometry(l.id), 4, shiny));
+    this.beltGoldTimer = BELT_GOLD.minDelay * 0.6 + Math.random() * 20;
 
     const goldMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: 0x7a5200 });
     this.golden = new THREE.Mesh(M.itemGeometry('gold'), goldMat);
@@ -978,13 +989,13 @@ export class World {
       let sum = 0;
       const vis = LINES.map((l, i) => {
         const r = this.lineObjs[i] ? rateOf(i) : 0;
-        let v = r <= 2.5 ? r : 2.5 + Math.log2(r / 2.5) * 0.5;
-        v = Math.min(v, 4);
+        let v = r <= 3 ? r : 3 + Math.log2(r / 3) * 0.6;
+        v = Math.min(v, 4.2);
         sum += v;
         return v;
       });
-      // de verzamelband houdt zo ruim de helft vrij, zodat elke lijn kan invoegen
-      const scale = sum > 3.6 ? 3.6 / sum : 1;
+      // de verzamelband mag flink vol, maar houdt nog wat ruimte zodat elke lijn kan invoegen
+      const scale = sum > 5.4 ? 5.4 / sum : 1;
       let feed = 0;
       LINES.forEach((l, i) => {
         const o = this.lineObjs[i];
@@ -992,7 +1003,7 @@ export class World {
         const r = rateOf(i);
         o.vis = vis[i] * scale;
         o.batch = o.vis > 0 ? r / o.vis : 1;
-        o.k = Math.max(1, Math.min(l.apples, Math.floor(4 / Math.max(o.vis, 0.01))));
+        o.k = Math.max(1, Math.min(l.apples, Math.floor(5 / Math.max(o.vis, 0.01))));
         o.base = Math.min(1.5, 0.25 + Math.log10(1 + r) / 2);
         feed += o.vis * o.k;
       });
@@ -1001,8 +1012,8 @@ export class World {
         feed = 0;
         this.lineObjs.forEach((o) => { if (o) { o.k = Math.max(1, Math.floor(o.k * f)); feed += o.vis * o.k; } });
       }
-      this.feedRate = 0;
-      this.lineObjs.forEach((o, i) => { if (o && !this.lineFlows[i].input.full()) this.feedRate += o.vis * o.k; });
+      this.feedRate = feed;
+      this.applesShort = prod.lines.some((l, i) => this.lineObjs[i] && l.status === 'apples');
     }
   }
 
@@ -1294,6 +1305,8 @@ export class World {
     // banden en machines
     this.applePool.begin();
     this.productPools.forEach((p) => p.begin());
+    this.goldApplePool.begin();
+    this.goldProductPools.forEach((p) => p.begin());
     this.updateBelts(dt);
     this.lineObjs.forEach((o) => {
       if (!o) return;
@@ -1325,6 +1338,8 @@ export class World {
     // appels in manden laten zien bij plukkers
     this.applePool.end();
     this.productPools.forEach((p) => p.end());
+    this.goldApplePool.end();
+    this.goldProductPools.forEach((p) => p.end());
 
     // bomen tonen met pop-animatie
     const counts = [0, 0, 0];
@@ -1418,12 +1433,17 @@ export class World {
   // Het bandennetwerk: toevoerband -> lijnen -> machines -> verzamelband -> magazijn.
   updateBelts(dt) {
     if (!this.feeder) return;
-    // Is de appelbak vol, dan duwt hij zoveel appels op de band als erop past: de band loopt vol
-    // en de appels wachten voor de machines. Anders komen er precies zoveel als de machines vragen.
-    const push = this.binFull;
-    this.feedTimer = Math.min(2, this.feedTimer + dt * (push ? 12 : this.feedRate));
+    // Genoeg appels: de toevoerband staat vol en elke machine pakt er zijn appels af (een bufferband).
+    // Te weinig: er komen maar zoveel appels als de boomgaard plukt, en die worden eerlijk verdeeld.
+    const short = this.applesShort && !this.binFull;
+    if (short) this.feedTimer = Math.min(2, this.feedTimer + dt * this.feedRate);
+    else this.feedTimer = this.feedRate > 0 || this.binFull ? 1.5 : 0;
+    this.beltGoldTimer -= dt;
     if (this.feedTimer >= 1 && this.feeder.canInsert(0)) {
-      this.feeder.insert({ d: 0, pool: this.applePool });
+      // af en toe een gouden appel ertussen
+      const gold = this.beltGoldOn && this.beltGoldTimer <= 0 && this.feedRate > 0;
+      if (gold) this.beltGoldTimer = BELT_GOLD.minDelay + Math.random() * (BELT_GOLD.maxDelay - BELT_GOLD.minDelay);
+      this.feeder.insert(gold ? { d: 0, pool: this.goldApplePool, gold: true } : { d: 0, pool: this.applePool });
       this.feedTimer -= 1;
     }
     this.feeder.update(dt, () => false);
@@ -1431,14 +1451,19 @@ export class World {
     this.lineObjs.forEach((o, i) => {
       if (!o) return;
       const f = this.lineFlows[i];
-      // appels afslaan van de toevoerband naar deze lijn
-      o.want = Math.min(2, o.want + o.vis * dt);
-      if ((o.want >= 1 || push) && f.input.canInsert(0)) {
+      const k = o.k || 1;
+      // appels afslaan naar deze lijn: bij een tekort alleen het eigen deel (k appels per product)
+      o.want = Math.min(3, o.want + o.vis * k * dt);
+      if ((o.want >= 1 || !short) && f.input.canInsert(0)) {
         const it = this.feeder.takeNear(this.feedJoin(i));
         if (it) { it.d = 0; f.input.insert(it); o.want = Math.max(0, o.want - 1); }
       }
-      const k = o.k || 1;
-      f.input.update(dt, () => { if (o.held < k) { o.held++; return true; } return false; });
+      f.input.update(dt, (it) => {
+        if (o.held >= k) return false;
+        o.held++;
+        if (it.gold) o.goldIn = true;
+        return true;
+      });
       // de machine maakt een product van k appels, als er plek is op de band erna
       let running = false;
       if (o.held >= k && o.vis > 0) {
@@ -1446,7 +1471,10 @@ export class World {
         running = true;
         if (o.prog >= 1) {
           if (f.output.canInsert(0)) {
-            f.output.insert({ d: 0, pool: this.productPools[i], fresh: true });
+            const gold = !!o.goldIn;
+            o.goldIn = false;
+            f.output.insert({ d: 0, pool: gold ? this.goldProductPools[i] : this.productPools[i], fresh: true, gold });
+            if (gold && this.onBeltGold) this.onBeltGold(i, o.batch || 1);
             o.held -= k;
             o.prog = 0;
             o.pop = 1;

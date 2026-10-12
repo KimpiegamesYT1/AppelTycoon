@@ -123,6 +123,8 @@ export const INVESTOR_POWER = 0.25;
 
 // Gouden appel: verschijnt af en toe in de boomgaard.
 export const GOLDEN = { minDelay: 45, maxDelay: 110, lifetime: 20, incomeSeconds: 20, minReward: 20 };
+// Af en toe rolt er een gouden appel over de band: het product dat ervan gemaakt wordt is beltMult keer zoveel waard.
+export const BELT_GOLD = { minDelay: 45, maxDelay: 90, mult: 5 };
 
 // Offline-inkomen.
 export const OFFLINE = { maxHours: 4, rate: 0.5 };

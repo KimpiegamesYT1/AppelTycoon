@@ -4,7 +4,7 @@ import { UI } from './ui.js';
 import { sfx, setSound, initMusic, setMusic } from './audio.js';
 import { glyph } from './icons.js';
 import { TUTORIAL } from './tutorial.js';
-import { LINES, TIERS, GOLDEN, OFFLINE, INVESTOR_BONUS, UPGRADES, PICKER_LEVELS, DOCK_LEVELS, STARS } from './config.js';
+import { LINES, TIERS, GOLDEN, BELT_GOLD, OFFLINE, INVESTOR_BONUS, UPGRADES, PICKER_LEVELS, DOCK_LEVELS, STARS } from './config.js';
 import { goalAt, goalProgress, goalReward } from './goals.js';
 import { money, fmt } from './format.js';
 
@@ -228,6 +228,17 @@ try {
   throw e;
 }
 game.world = world;
+// gouden appel op de band verwerkt: dat product is BELT_GOLD.mult keer zoveel waard
+world.onBeltGold = (i, batch) => {
+  const reward = E.lineValue(state, i) * E.priceMult(state) * batch * BELT_GOLD.mult;
+  E.earn(state, reward);
+  state.stats.beltGold = (state.stats.beltGold || 0) + 1;
+  sfx.coin();
+  const pos = world.stationPos({ kind: 'line', i }).setX(12).setY(2.5);
+  world.burst(pos.clone(), 30);
+  const p = world.toScreen(pos);
+  if (p.visible) ui.float(p.x, p.y, `x${BELT_GOLD.mult} +${money(reward)}`, 'gold');
+};
 const ui = new UI(game);
 game.ui = ui;
 
@@ -272,6 +283,7 @@ function frame(t) {
 
   game.prod = E.computeProduction(state, now);
   world.sync(state, game.prod);
+  world.beltGoldOn = state.tutorial >= TUTORIAL.length;
 
   // gouden appel
   if (world.golden.visible) {

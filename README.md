@@ -17,7 +17,7 @@ Online zetten met GitHub Pages: **Settings → Pages → Deploy from a branch**,
 
 ## Gameplay
 
-Je begint met een schuurtje, een paar appelbomen en één vrachtwagen. Een korte tutorial laat je de eerste machine bouwen en legt de keten uit:
+Je begint met een schuurtje, een paar appelbomen en één bezorgscooter. Een korte tutorial laat je de eerste machine bouwen en legt de keten uit:
 
 **boomgaard → appelbak → machines → magazijn → vrachtwagens → geld**
 
@@ -26,7 +26,8 @@ Je begint met een schuurtje, een paar appelbomen en één vrachtwagen. Een korte
 - **Upgraden werkt zoals in Eatventure:** elk level maakt je product meer waard (prijs × level), dat merk je meteen. Op level 10 en daarna elke 25 levels krijgt een machine een **ster**: om en om twee keer zo snel (meer appels nodig) of twee keer zo veel waard. Een level wordt maar 5,5% duurder, dus door de sterren blijft upgraden steeds lonen; je hoeft nooit lang te wachten. Een balk in de kaart loopt vol naar de volgende ster, en een grote melding vertelt wat je kreeg (en of je boomgaard of vrachtwagens mee moeten).
 - **De keten moet meegroeien:** een snellere machine heeft meer appels en meer vrachtwagenruimte nodig. Te weinig appels en hij draait langzamer; kunnen de vrachtwagens het niet bijhouden, dan loopt het magazijn vol en lopen je lijnen vast.
 - **Geld verdien je alleen met verkochte producten**: een vrachtwagen laadt kratjes aan de deur, vertrekt (dan is de lading verkocht) en is na ~10 seconden terug. Vrachtwagens vertrekken nooit leeg en wachten hooguit 4 seconden op lading.
-- **Vrachtwagens** – elk level +25% lading. Op level 10, 20, 30, 40 en 50 komt er een laadplek met een extra vrachtwagen bij.
+- **Vervoer** – elk level +25% lading. Op level 10, 20, 30, 40 en 50 komt er een laadplek met een extra voertuig bij, en het vervoer groeit mee: scooter → pickup → bestelbus → vrachtwagen → grote truck. Het magazijn groeit mee met medewerkers, heftrucks en een wikkelmachine.
+- **Lopende banden** – de toevoerband is een bufferband die vol staat met appels; elke machine pakt wat hij nodig heeft. Bij een appeltekort wordt hij zichtbaar leger en krijgt elke lijn zijn eerlijke deel. Af en toe rolt er een **gouden appel** mee: het product dat ervan gemaakt wordt levert 5× zoveel op.
 - **Upgrades-menu** – 38 eenmalige upgrades (prijs x2/x3, snelheid x2, boomgaard, vrachtwagens, alle prijzen), goedkoopste eerst, zoals het upgrade-menu van Eatventure. Rode pijltjes boven stations en een rood getal op de knop laten zien wat je kunt kopen.
 - **Ketenbalans** – staven en een grafiek van plukken, verwerken en vervoeren (alles in appels per seconde).
 - De banden vormen één netwerk (toevoerband → lijnen → verzamelband → magazijn). Loopt het magazijn vol, dan hopen producten zich zichtbaar op tot aan de machines.
