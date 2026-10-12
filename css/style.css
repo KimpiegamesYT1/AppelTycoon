@@ -476,8 +476,10 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   color: #fff; background: var(--red); border-radius: 50%;
   width: 20px; height: 20px; display: grid; place-items: center; font-size: 13px;
   box-shadow: 0 2px 0 var(--red-d);
-  animation: arrowBob 0.7s ease-in-out infinite;
+  animation: upBob 1.4s ease-in-out infinite;
 }
+/* rustig deinen in plaats van springen */
+@keyframes upBob { 50% { translate: 0 -2px; } }
 .label .up .ic { stroke-width: 3.4; }
 .lb-star { display: inline-flex; align-items: center; gap: 1px; color: var(--gold-d); font-size: 12px; }
 .lb-star .ic { color: var(--gold); font-size: 13px; }
