@@ -2,7 +2,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import * as M from './models.js';
 import { LINES, TIERS, TRUCK, PICKER_LEVELS } from './config.js';
-import { truckCount, truckCapacity, starCount } from './economy.js';
+import { truckCount, truckCapacity, starCount, vehicleStage } from './economy.js';
 
 const LINE_SPACING = 5.5;
 const LZ0 = 2.5;
@@ -513,97 +513,9 @@ export class World {
       this.hits.push(h);
     }
 
-    // ---- Magazijn: open hal met een lage westmuur, zodat je de band ziet binnenkomen ----
-    const db = new M.Builder();
-    const dw = DX1 - DX0;
-    const dd = DZ1 - DZ0;
-    db.box(dw, 0.3, dd, 0xd9dcdf, DEPOT.x, 0, DEPOT.z);
-    for (let x = DX0 + 2.25; x < DX1; x += 2.25) db.box(0.04, 0.02, dd, 0xc4c8cc, x, 0.3, DEPOT.z);
-    // looproute van de heftruck
-    db.box(0.12, 0.03, dd - 2, M.C.yellow, DX1 - 2.25, 0.3, DEPOT.z + 0.6);
-    db.box(0.12, 0.03, dd - 2, M.C.yellow, DX1 - 4.1, 0.3, DEPOT.z + 0.6);
-    const dwh = 3.6;
-    db.box(dw + 0.3, dwh, 0.3, 0xe9e4da, DEPOT.x, 0.3, DZ0);
-    db.box(dw + 0.32, 0.35, 0.34, M.C.red, DEPOT.x, 0.3 + dwh, DZ0);
-    for (let x = DX0 + 2.4; x < DX1 - 1; x += 3.2) db.box(1.6, 0.9, 0.34, M.C.glass, x, 2.0, DZ0);
-    // lage westmuur met opening voor de verzamelband
-    const lw = 1.0;
-    const w1 = FEED_Z - 0.85 - DZ0;
-    db.box(0.3, lw, w1, 0xe9e4da, DX0, 0.3, DZ0 + w1 / 2);
-    const w2 = DZ1 - (FEED_Z + 0.85);
-    db.box(0.3, lw, w2, 0xe9e4da, DX0, 0.3, FEED_Z + 0.85 + w2 / 2);
-    db.box(0.34, 0.12, w1, M.C.red, DX0, 0.3 + lw, DZ0 + w1 / 2);
-    db.box(0.34, 0.12, w2, M.C.red, DX0, 0.3 + lw, FEED_Z + 0.85 + w2 / 2);
-    db.box(0.5, dwh + 0.5, 0.5, M.C.red, DX0, 0, DZ0);
-    db.box(0.5, dwh + 0.5, 0.5, M.C.red, DX1, 0, DZ0);
-    // bord op de achterwand
-    db.box(4.2, 1.0, 0.12, M.C.white, DEPOT.x + 1.6, 2.6, DZ0 + 0.2);
-    db.ico(0.4, M.C.apple, DEPOT.x, 3.1, DZ0 + 0.3, { sz: 0.3 });
-    db.box(2.4, 0.18, 0.05, M.C.red, DEPOT.x + 2.1, 3.25, DZ0 + 0.28);
-    db.box(2.0, 0.18, 0.05, M.C.red, DEPOT.x + 1.9, 2.85, DZ0 + 0.28);
-    // inpaktafel waar de verzamelband eindigt
-    db.box(1.5, 0.75, 1.4, M.C.metalDark, DEPOT_IN + 0.45, 0.3, FEED_Z);
-    for (let k = 0; k < 4; k++) db.cyl(0.07, 1.3, M.C.metal, DEPOT_IN - 0.1 + k * 0.35, 1.0, FEED_Z - 0.65, { seg: 6, rx: Math.PI / 2 });
-    // laadplein naar de weg
-    db.box(ROAD_X - 2.45 - DX1, 0.17, dd, M.C.road, (DX1 + ROAD_X - 2.45) / 2, 0, DEPOT.z);
-    for (let k = 0; k < 6; k++) db.box(4.6, 0.02, 0.1, 0xffffff, DX1 + 2.6, 0.17, dockZ(k) + 1.55);
-    const depot = db.mesh({ receive: true });
-    depot.receiveShadow = true;
-    g.add(depot);
-    const rail = M.guardRail(dw - 0.6);
-    rail.position.set(DX0 + 0.3, 0.3, DZ1);
-    g.add(rail);
-    // stellingen; de kratten erin laten zien hoe vol het magazijn is
-    this.storeCrates = [];
-    const racks = [[DX0 + 0.5, DZ0 + 0.9, 4], [DX0 + 0.5, 5.6, 4], [DX0 + 0.5, 10.6, 4]];
-    for (const [x, z, bays] of racks) {
-      const r = M.palletRack(bays);
-      r.position.set(x, 0.3, z);
-      g.add(r);
-    }
-    for (let lvl = 0; lvl < 3; lvl++) {
-      for (const [x, z, bays] of racks) {
-        for (let bay = 0; bay < bays; bay++) {
-          const c = M.shelfCrate(bay + lvl * 3);
-          c.position.set(x + 0.55 + bay * 1.1, 0.3 + 0.11 + lvl * 0.85, z);
-          c.visible = false;
-          g.add(c);
-          this.storeCrates.push(c);
-        }
-      }
-    }
-    // laaddeuren met een pallet die klaarstaat voor de vrachtwagen
-    this.docks = [];
-    for (let k = 0; k < 6; k++) {
-      const door = M.dockDoor();
-      door.position.set(DX1, 0.3, dockZ(k));
-      g.add(door);
-      const p = M.pallet(0xc9b28a);
-      p.scale.set(1, 0.17, 1);
-      p.position.set(DX1 - 1.3, 0.3, dockZ(k));
-      g.add(p);
-      const crates = [];
-      for (let c = 0; c < 4; c++) {
-        const cb = new M.Builder();
-        cb.box(0.55, 0.5, 0.55, c % 2 ? M.C.wood : 0xd29a62, 0, 0, 0);
-        cb.ico(0.11, M.C.apple, 0, 0.52, 0);
-        const m = cb.mesh();
-        m.position.set(DX1 - 1.3 + (c % 2 ? 0.28 : -0.28), 0.5 + Math.floor(c / 2) * 0.52, dockZ(k) + (c % 2 ? 0.28 : -0.28) * (c < 2 ? 1 : -1));
-        m.visible = false;
-        g.add(m);
-        crates.push(m);
-      }
-      this.docks.push({ door, pallet: p, crates, staged: 0, userData: door.userData });
-    }
-    const sh = M.hitBox(dw + 7, 5, dd, DEPOT.x + 3.5, 0, DEPOT.z);
-    sh.userData.station = { kind: 'sales' };
-    g.add(sh);
-    this.hits.push(sh);
-
-    const fork = M.forklift();
-    g.add(fork);
-    this.forklift = new PathMover(fork, [[DEPOT_IN + 1.6, 1.4], [DX1 - 2.6, 1.4], [DX1 - 2.6, 15], [DX1 - 3.7, 15], [DX1 - 3.7, 2.2], [DEPOT_IN + 1.6, 2.2]], 2.2,
-      { stops: { 0: 1.0, 2: 1.0 }, y: 0.3 });
+    // ---- Magazijn: groeit mee met je vrachtwagens (zie buildDepot) ----
+    this.depotKey = null;
+    this.buildDepot(state);
 
     // ---- Lege lijnplekken ----
     this.slotMarks = [];
@@ -663,6 +575,229 @@ export class World {
     this.builtTier = tier;
     this.builtSlots = slots;
     this.zEnd = zEnd;
+  }
+
+  // Hoe het magazijn eruitziet hangt af van het vrachtwagen-level: elke laadplek een stuk hal erbij,
+  // en op hogere levels medewerkers, lampen, een groot bord, een wikkelmachine
+  // en een tweede heftruck.
+  depotLook(state) {
+    const lv = state.sales;
+    return {
+      docks: truckCount(lv),
+      decor: [15, 25, 35, 45, 60].filter((x) => lv >= x).length,
+      workers: Math.min(6, Math.floor(lv / 6)),
+    };
+  }
+
+  buildDepot(state) {
+    const look = this.depotLook(state);
+    const key = `${look.docks}|${look.decor}|${look.workers}`;
+    if (key === this.depotKey) return false;
+    const first = this.depotKey === null;
+    this.depotKey = key;
+    if (this.depotGroup) {
+      this.scene.remove(this.depotGroup);
+      disposeTree(this.depotGroup);
+      this.hits = this.hits.filter((h) => !h.userData.depot);
+    }
+    const g = new THREE.Group();
+    this.depotGroup = g;
+    this.scene.add(g);
+    const { docks: nDocks, decor, workers } = look;
+    const z1 = Math.max(2.6, dockZ(nDocks - 1) + 2.1);
+    const dw = DX1 - DX0;
+    const dd = z1 - DZ0;
+    const cz = (DZ0 + z1) / 2;
+    const db = new M.Builder();
+    db.box(dw, 0.3, dd, 0xd9dcdf, DEPOT.x, 0, cz);
+    for (let x = DX0 + 2.25; x < DX1; x += 2.25) db.box(0.04, 0.02, dd, 0xc4c8cc, x, 0.3, cz);
+    // looproute van de heftruck
+    db.box(0.12, 0.03, dd - 2, M.C.yellow, DX1 - 2.25, 0.3, cz + 0.6);
+    db.box(0.12, 0.03, dd - 2, M.C.yellow, DX1 - 4.1, 0.3, cz + 0.6);
+    const dwh = 3.6;
+    db.box(dw + 0.3, dwh, 0.3, 0xe9e4da, DEPOT.x, 0.3, DZ0);
+    db.box(dw + 0.32, 0.35, 0.34, M.C.red, DEPOT.x, 0.3 + dwh, DZ0);
+    for (let x = DX0 + 2.4; x < DX1 - 1; x += 3.2) db.box(1.6, 0.9, 0.34, M.C.glass, x, 2.0, DZ0);
+    // lage westmuur met opening voor de verzamelband
+    const lw = 1.0;
+    const w1 = FEED_Z - 0.85 - DZ0;
+    db.box(0.3, lw, w1, 0xe9e4da, DX0, 0.3, DZ0 + w1 / 2);
+    const w2 = z1 - (FEED_Z + 0.85);
+    db.box(0.3, lw, w2, 0xe9e4da, DX0, 0.3, FEED_Z + 0.85 + w2 / 2);
+    db.box(0.34, 0.12, w1, M.C.red, DX0, 0.3 + lw, DZ0 + w1 / 2);
+    db.box(0.34, 0.12, w2, M.C.red, DX0, 0.3 + lw, FEED_Z + 0.85 + w2 / 2);
+    db.box(0.5, dwh + 0.5, 0.5, M.C.red, DX0, 0, DZ0);
+    db.box(0.5, dwh + 0.5, 0.5, M.C.red, DX1, 0, DZ0);
+    db.box(0.5, 1.5, 0.5, M.C.red, DX0, 0, z1);
+    // bord op de achterwand
+    db.box(4.2, 1.0, 0.12, M.C.white, DEPOT.x + 1.6, 2.6, DZ0 + 0.2);
+    db.ico(0.4, M.C.apple, DEPOT.x, 3.1, DZ0 + 0.3, { sz: 0.3 });
+    db.box(2.4, 0.18, 0.05, M.C.red, DEPOT.x + 2.1, 3.25, DZ0 + 0.28);
+    db.box(2.0, 0.18, 0.05, M.C.red, DEPOT.x + 1.9, 2.85, DZ0 + 0.28);
+    // inpaktafel waar de verzamelband eindigt
+    db.box(1.5, 0.75, 1.4, M.C.metalDark, DEPOT_IN + 0.45, 0.3, FEED_Z);
+    for (let k = 0; k < 4; k++) db.cyl(0.07, 1.3, M.C.metal, DEPOT_IN - 0.1 + k * 0.35, 1.0, FEED_Z - 0.65, { seg: 6, rx: Math.PI / 2 });
+    // laadplein naar de weg (altijd de volle lengte, zodat de vrachtwagens kunnen keren)
+    db.box(ROAD_X - 2.45 - DX1, 0.17, DZ1 - DZ0, M.C.road, (DX1 + ROAD_X - 2.45) / 2, 0, DEPOT.z);
+    for (let k = 0; k < 6; k++) db.box(4.6, 0.02, 0.1, 0xffffff, DX1 + 2.6, 0.17, dockZ(k) + 1.55);
+    // bouwplaats voor de volgende laadplek
+    if (z1 < DZ1 - 0.5) {
+      db.box(dw, 0.12, DZ1 - z1 - 0.4, 0xc9b48a, DEPOT.x, 0, (z1 + DZ1) / 2 + 0.2);
+      for (let x = DX0 + 0.5; x < DX1; x += 1.2) db.box(0.6, 0.05, 0.12, 0xffc43d, x, 0.13, z1 + 0.6);
+    }
+    // lampen aan de achterwand
+    const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff1b8 });
+    if (decor >= 1) {
+      const lamp = (x, y, z) => {
+        db.box(0.7, 0.14, 0.45, 0x3a4250, x, y, z);
+        const l = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.04, 0.32), lampMat);
+        l.position.set(x, y - 0.01, z);
+        g.add(l);
+      };
+      for (let x = DX0 + 1.6; x < DX1 - 0.5; x += 3.2) lamp(x, 3.2, DZ0 + 0.4);
+    }
+    if (decor >= 2) {
+      // veiligheidsstrepen op de vloer bij de deuren en een stapel lege pallets
+      for (let k = 0; k < nDocks; k++) for (let j = 0; j < 4; j++) db.box(0.3, 0.02, 0.5, j % 2 ? 0x2b2f3a : M.C.yellow, DX1 - 0.4 - j * 0.3, 0.31, dockZ(k));
+      for (let k = 0; k < 5; k++) db.box(1.1, 0.14, 1.1, k % 2 ? 0xc9b28a : 0xb89a6e, DX0 + 1.0, 0.3 + k * 0.16, z1 - 0.9);
+    }
+    // groot bord boven de hal
+    if (decor >= 3) {
+      db.box(0.15, 2.0, 0.15, 0x3a4250, DEPOT.x - 2.5, 3.9, DZ0);
+      db.box(0.15, 2.0, 0.15, 0x3a4250, DEPOT.x + 2.5, 3.9, DZ0);
+      db.box(6.2, 1.5, 0.2, M.C.red, DEPOT.x, 5.0, DZ0);
+      db.box(5.8, 1.1, 0.05, M.C.white, DEPOT.x, 5.2, DZ0 + 0.12);
+      db.ico(0.55, M.C.apple, DEPOT.x - 2.0, 5.75, DZ0 + 0.2, { sz: 0.35 });
+      for (let k = 0; k < 4; k++) db.box(0.55, 0.6, 0.05, M.C.red, DEPOT.x - 0.9 + k * 0.85, 5.45, DZ0 + 0.16);
+    }
+    // kantoortje in de hoek
+    if (decor >= 5) {
+      db.box(2.4, 2.4, 2.2, 0xf4f1ea, DX1 - 1.5, 0.3, DZ0 + 1.4);
+      db.box(2.5, 0.15, 2.3, M.C.blue, DX1 - 1.5, 2.7, DZ0 + 1.4);
+      db.box(1.4, 0.8, 0.05, M.C.glass, DX1 - 1.7, 1.4, DZ0 + 2.52);
+      db.box(0.7, 1.6, 0.05, 0x8a5a33, DX1 - 0.6, 0.3, DZ0 + 2.52);
+    }
+    const depot = db.mesh({ receive: true });
+    depot.receiveShadow = true;
+    g.add(depot);
+    const rail = M.guardRail(dw - 0.6);
+    rail.position.set(DX0 + 0.3, 0.3, z1);
+    g.add(rail);
+
+    // stellingen; de kratten erin laten zien hoe vol het magazijn is
+    this.storeCrates = [];
+    const rz = [DZ0 + 0.9];
+    if (nDocks >= 3) rz.push(nDocks >= 4 ? 5.6 : 3.0);
+    if (nDocks >= 5) rz.push(10.6);
+    const racks = rz.map((z) => [DX0 + 0.5, z, 4]);
+    for (const [x, z, bays] of racks) {
+      const r = M.palletRack(bays);
+      r.position.set(x, 0.3, z);
+      g.add(r);
+    }
+    for (let lvl = 0; lvl < 3; lvl++) {
+      for (const [x, z, bays] of racks) {
+        for (let bay = 0; bay < bays; bay++) {
+          const c = M.shelfCrate(bay + lvl * 3);
+          c.position.set(x + 0.55 + bay * 1.1, 0.3 + 0.11 + lvl * 0.85, z);
+          c.visible = false;
+          g.add(c);
+          this.storeCrates.push(c);
+        }
+      }
+    }
+    // laaddeuren met een pallet die klaarstaat voor de vrachtwagen (alleen in het gebouwde deel)
+    this.docks = [];
+    for (let k = 0; k < 6; k++) {
+      if (dockZ(k) > z1 - 1) break;
+      const door = M.dockDoor();
+      door.position.set(DX1, 0.3, dockZ(k));
+      g.add(door);
+      const p = M.pallet(0xc9b28a);
+      p.scale.set(1, 0.17, 1);
+      p.position.set(DX1 - 1.3, 0.3, dockZ(k));
+      g.add(p);
+      const crates = [];
+      for (let c = 0; c < 4; c++) {
+        const cb = new M.Builder();
+        cb.box(0.55, 0.5, 0.55, c % 2 ? M.C.wood : 0xd29a62, 0, 0, 0);
+        cb.ico(0.11, M.C.apple, 0, 0.52, 0);
+        const m = cb.mesh();
+        m.position.set(DX1 - 1.3 + (c % 2 ? 0.28 : -0.28), 0.5 + Math.floor(c / 2) * 0.52, dockZ(k) + (c % 2 ? 0.28 : -0.28) * (c < 2 ? 1 : -1));
+        m.visible = false;
+        g.add(m);
+        crates.push(m);
+      }
+      this.docks.push({ door, pallet: p, crates, staged: 0, userData: door.userData });
+    }
+    const sh = M.hitBox(dw + 7, 5, DZ1 - DZ0, DEPOT.x + 3.5, 0, DEPOT.z);
+    sh.userData.station = { kind: 'sales' };
+    sh.userData.depot = true;
+    g.add(sh);
+    this.hits.push(sh);
+
+    // heftrucks: van de band naar de laaddeuren; vorken omhoog met lading, omlaag zonder
+    const zFar = z1 > 5 ? z1 - 1.6 : -3.3;
+    const forkPath = [[DEPOT_IN + 1.6, 1.4], [DX1 - 2.6, 1.4], [DX1 - 2.6, zFar], [DX1 - 3.7, zFar], [DX1 - 3.7, zFar > 1.4 ? 2.2 : 0.6], [DEPOT_IN + 1.6, zFar > 1.4 ? 2.2 : 0.6]];
+    this.forklifts = [];
+    for (let f = 0; f < (decor >= 5 ? 2 : 1); f++) {
+      const fork = M.forklift();
+      g.add(fork);
+      const fl = { obj: fork, loaded: false, lift: 0 };
+      fl.mover = new PathMover(fork, forkPath, 2.2, {
+        offset: f * 0.5, stops: { 0: 1.2, 2: 1.2 }, y: 0.3,
+        onLeave: (seg) => { fl.loaded = seg === 0 ? true : seg === 2 ? false : fl.loaded; },
+      });
+      fl.loaded = f === 1;
+      this.forklifts.push(fl);
+    }
+
+    // wikkelmachine: draait folie om een pallet
+    this.wrapper = null;
+    if (decor >= 4) {
+      const wb = new M.Builder();
+      wb.cyl(0.9, 0.15, 0x3a4250, 0, 0, 0, { seg: 12 });
+      wb.box(0.25, 2.4, 0.25, 0x3a4250, 1.0, 0, 0);
+      wb.box(0.85, 0.85, 0.85, M.C.wood, 0, 0.15, 0);
+      wb.box(0.9, 0.5, 0.9, 0xcfe8ff, 0, 0.3, 0);
+      const base = wb.mesh();
+      base.position.set(DX0 + 6.4, 0.3, z1 > 5 ? z1 - 2.2 : DZ0 + 3.0);
+      g.add(base);
+      const arm = new THREE.Group();
+      arm.position.copy(base.position);
+      const ab = new M.Builder();
+      ab.box(0.15, 0.6, 0.15, M.C.orange, 1.0, 0.5, 0);
+      ab.cyl(0.08, 0.6, 0xcfe8ff, 0.85, 0.5, 0, { seg: 6 });
+      arm.add(ab.mesh());
+      g.add(arm);
+      this.wrapper = arm;
+    }
+
+    // medewerkers: sjouwen kratten van de stelling naar de laaddeuren
+    this.depotWorkers = [];
+    const vest = [0xff7a1a, 0xd9e04a, 0xff7a1a, 0x3d7bd9, 0xd9e04a, 0xff7a1a];
+    for (let w = 0; w < workers; w++) {
+      const person = M.person(vest[w % vest.length], M.C.white, { helmet: true });
+      const cb = new M.Builder();
+      cb.box(0.5, 0.4, 0.4, M.C.wood, 0, 0, 0);
+      cb.ico(0.1, M.C.apple, 0, 0.42, 0);
+      const crate = cb.mesh();
+      crate.position.set(0.35, 0.75, 0);
+      person.add(crate);
+      g.add(person);
+      const rack = racks[w % racks.length];
+      const from = [rack[0] + 0.9 + (w % 3) * 1.2, rack[1] + 1.1];
+      const k = w % Math.max(1, this.docks.length);
+      const to = [DX1 - 1.9, dockZ(k) + (w % 2 ? 0.7 : -0.7)];
+      const mover = new PathMover(person, [from, to], 1.6, { offset: (w * 0.37) % 1, stops: { 0: 1.0, 1: 0.8 } });
+      this.depotWorkers.push({ person, crate, mover });
+    }
+
+    if (!first) {
+      this.bounce(g);
+      this.burst(new THREE.Vector3(DEPOT.x, 4, cz), 70);
+    }
+    return true;
   }
 
   // Waar de volgende uitbreiding gebouwd wordt.
@@ -807,10 +942,23 @@ export class World {
     while (this.pickers.length < pickers) this.addPicker();
     while (this.pickers.length > pickers) { const p = this.pickers.pop(); this.scene.remove(p.obj); disposeTree(p.obj); }
 
+    // magazijn groeit mee met het vrachtwagen-level
+    this.buildDepot(state);
+
     // vrachtwagens: één per open laadplek
     this.state = state;
     this.truckCap = truckCapacity(state);
     const trucks = truckCount(state.sales);
+    // groter voertuig (scooter -> pickup -> bestelbus -> vrachtwagen -> grote truck): alles opnieuw
+    const stage = vehicleStage(state.sales);
+    if (stage !== this.vehicleStage) {
+      const upgrade = this.vehicleStage != null && this.trucks.length > 0;
+      this.trucks.forEach((t) => { this.scene.remove(t.obj); disposeTree(t.obj); });
+      this.trucks = [];
+      this.vehicleStage = stage;
+      while (this.trucks.length < trucks) this.addTruck(this.trucks.length);
+      if (upgrade) this.trucks.forEach((t) => this.bounce(t.obj));
+    }
     while (this.trucks.length < trucks) this.addTruck(this.trucks.length);
     this.openDocks = trucks;
 
@@ -885,10 +1033,11 @@ export class World {
 
   addTruck(k) {
     const colors = [0xd9473b, 0x3d7bd9, 0x27ae60, 0xf39c12, 0x8e44ad, 0x16a085];
-    const obj = M.truck(colors[k % colors.length], k);
+    const obj = M.vehicle(this.vehicleStage || 0, colors[k % colors.length], k);
     this.scene.add(obj);
     const z = dockZ(k);
-    const park = DX1 + 2.45;
+    // achterkant van het voertuig tegen de laaddeur
+    const park = DX1 + 0.25 + obj.userData.len / 2;
     // korte rit: de vrachtwagen keert op de weg om, zodat er elke ~10 s een vrachtwagen met geld vertrekt
     const turn = 34;
     const path = [[park, z], [ROAD_X - 0.5, z], [ROAD_X - 0.5, turn], [ROAD_X + 3.5, turn], [ROAD_X + 3.5, z], [park + 4.5, z]];
@@ -1211,10 +1360,26 @@ export class World {
       const d = st.t < L ? 0 : ((st.t - L) / (TRUCK.cycle - L)) * tr.mover.total;
       tr.mover.setDistance(d, dt);
       const full = st.t < L ? (this.truckCap > 0 ? st.load / this.truckCap : 0) : tr.mover.seg < 2 ? st.last : 0;
-      const n = Math.round(full * 8);
+      const n = Math.round(full * tr.obj.userData.cargo.length);
       tr.obj.userData.cargo.forEach((c, j) => { c.visible = j < n; });
     });
-    if (this.forklift) this.forklift.update(dt);
+    for (const fl of this.forklifts || []) {
+      fl.mover.update(dt);
+      const u = fl.obj.userData;
+      // vorken: omhoog als hij een pallet draagt, omlaag zonder; de lading is alleen zichtbaar als hij iets draagt
+      const target = fl.loaded ? 0.45 : 0.08;
+      fl.lift += (target - fl.lift) * Math.min(1, dt * 3);
+      u.carriage.position.y = 0.12 + fl.lift;
+      u.load.visible = fl.loaded;
+      u.beaconMat.color.setHex(Math.sin(this.time * 10 + fl.mover.d) > 0 ? 0xffb02e : 0x8a4a00);
+    }
+    for (const w of this.depotWorkers || []) {
+      w.mover.update(dt);
+      const walking = w.mover.wait <= 0;
+      w.crate.visible = w.mover.seg === 0;
+      if (w.person.userData.body) w.person.userData.body.position.y = walking ? Math.abs(Math.sin(this.time * 9 + w.mover.d)) * 0.08 : 0;
+    }
+    if (this.wrapper) this.wrapper.rotation.y += dt * 2.2;
 
     // gouden appel
     if (this.golden.visible) {

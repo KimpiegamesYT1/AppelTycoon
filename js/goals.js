@@ -3,7 +3,7 @@ import { LINES, TIERS, UPGRADES } from './config.js';
 
 const L = (i, level, min = 0) => ({ type: 'level', kind: 'line', i, level, min, text: `Upgrade ${LINES[i].name} naar level ${level}` });
 const O = (level, min = 0) => ({ type: 'level', kind: 'orchard', level, min, text: `Upgrade de Boomgaard naar level ${level}` });
-const S = (level, min = 0) => ({ type: 'level', kind: 'sales', level, min, text: `Upgrade de Vrachtwagens naar level ${level}` });
+const S = (level, min = 0) => ({ type: 'level', kind: 'sales', level, min, text: `Upgrade het Vervoer naar level ${level}` });
 const U = (i, min = 0) => ({ type: 'unlock', i, min, text: `Open de lijn ${LINES[i].name}` });
 const T = (t, min = 0) => ({ type: 'tier', t, min, text: `Breid uit naar ${TIERS[t].name}` });
 const I = (amount, min = 0) => ({ type: 'income', amount, min, text: `Verdien €${short(amount)} per seconde` });
@@ -29,7 +29,7 @@ export const GOALS = [
   { type: 'stat', stat: 'golden', n: 1, min: 2e3, text: 'Tik op een gouden appel' },
   L(1, 50, 5e3),
   { type: 'research', n: 5, min: 1e4, text: 'Koop 5 upgrades' },
-  { type: 'level', kind: 'sales', level: 10, min: 2e4, text: 'Vrachtwagens naar level 10: tweede laadplek' },
+  { type: 'level', kind: 'sales', level: 10, min: 2e4, text: 'Vervoer naar level 10: twee pickups' },
   L(2, 50, 5e4),
   T(2, 1e5),
   U(3, 2e5),

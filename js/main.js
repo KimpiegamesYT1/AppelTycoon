@@ -85,7 +85,7 @@ const game = {
     if (!q) { sfx.error(); return false; }
     state.stats.upgrades += q.count;
     const after = E.stationLevel(state, kind, i);
-    // een ster: lijnen worden twee keer zo snel, de boomgaard krijgt een plukker, de vrachtwagens een laadplek
+    // een ster: lijnen worden twee keer zo snel, de boomgaard krijgt een plukker, het vervoer een (groter) voertuig
     const marks = kind === 'line' ? null : kind === 'orchard' ? PICKER_LEVELS : DOCK_LEVELS;
     const count = (lv) => (marks ? marks.filter((m) => lv >= m).length : E.starCount(lv));
     const stars = count(after) - count(before);
@@ -94,8 +94,9 @@ const game = {
       const now = performance.now();
       const loud = now - (this.lastStarFx || 0) > 1500;
       if (loud) { sfx.milestone(); world.burst(world.stationPos(st).setY(3), 80); this.lastStarFx = now; } else sfx.levelUp(1);
-      const name = kind === 'line' ? LINES[i].name : kind === 'orchard' ? 'Boomgaard' : 'Vrachtwagens';
-      ui.starBanner(name, E.starReward(kind, STARS[count(after) - 1]).text, count(after), kind);
+      const name = kind === 'line' ? LINES[i].name : kind === 'orchard' ? 'Boomgaard' : 'Vervoer';
+      const reward = E.starReward(kind, marks ? marks[count(after) - 1] : STARS[count(after) - 1]).text;
+      ui.starBanner(name, kind === 'sales' ? `Nu ${reward}!` : reward, count(after), kind);
     } else {
       sfx.levelUp(ui.starProgress(kind, after));
     }

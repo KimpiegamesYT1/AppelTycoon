@@ -1,7 +1,7 @@
 // Pure spellogica zonder DOM of 3D, zodat de balans-simulatie dezelfde code gebruikt.
 import {
   STARS, ORCHARD, SALES, LINES, LINE_GROWTH, TIERS, START_MONEY,
-  UPGRADES, INVESTOR_BONUS, INVESTOR_BASE, INVESTOR_POWER, DOCK_LEVELS, PICKER_LEVELS, TRUCK,
+  UPGRADES, INVESTOR_BONUS, INVESTOR_BASE, INVESTOR_POWER, DOCK_LEVELS, PICKER_LEVELS, TRUCK, VEHICLES,
 } from './config.js';
 
 export const SAVE_VERSION = 5;
@@ -54,7 +54,10 @@ export function nextStar(level) {
 // Boomgaard: een extra plukker (alleen te zien). Vrachtwagens: een extra laadplek met vrachtwagen.
 export function starReward(kind, starLevel = STARS[0]) {
   if (kind === 'orchard') return { type: 'picker', text: 'Extra plukker' };
-  if (kind === 'sales') return { type: 'truck', text: 'Extra vrachtwagen' };
+  if (kind === 'sales') {
+    const lv = starLevel || DOCK_LEVELS[0];
+    return { type: 'truck', text: `${truckCount(lv)} ${vehicle(lv).plural}` };
+  }
   return STARS.indexOf(starLevel) % 2 === 0 ? { type: 'speed', text: 'Snelheid x2' } : { type: 'price', text: 'Prijs x2' };
 }
 
@@ -126,6 +129,15 @@ export function priceMult(state) {
 // Aantal laadplekken (en vrachtwagens) bij een level.
 export function truckCount(level) {
   return 1 + DOCK_LEVELS.filter((l) => level >= l).length;
+}
+
+// Welk voertuig er rijdt: scooter, pickup, bestelbus, vrachtwagen of grote truck.
+export function vehicleStage(level) {
+  return Math.min(VEHICLES.length - 1, truckCount(level) - 1);
+}
+
+export function vehicle(level) {
+  return VEHICLES[vehicleStage(level)];
 }
 
 export function pickerCount(level) {

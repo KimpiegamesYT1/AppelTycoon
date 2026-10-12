@@ -6,7 +6,7 @@ export const TUTORIAL = [
     done: (s) => s.lines[0] > 0,
   },
   {
-    text: 'Je machine stopt appels in kratjes. De vrachtwagen brengt ze naar de markt: zodra hij vertrekt, verdien je geld.',
+    text: 'Je machine stopt appels in kratjes. Je scooter brengt ze naar de markt: zodra hij vertrekt, verdien je geld.',
     target: { kind: 'sales' },
     done: (s) => s.runEarned >= 6,
   },
@@ -26,12 +26,12 @@ export const TUTORIAL = [
     done: (s) => s.orchard >= 3,
   },
   {
-    text: 'Meer kratjes betekent ook meer vervoer. Upgrade de vrachtwagens.',
+    text: 'Meer kratjes betekent ook meer vervoer. Upgrade het vervoer.',
     target: { kind: 'sales' },
     done: (s) => s.sales >= 3,
   },
   {
-    text: 'Dat is het geheim: upgraden voor geld, sterren voor snelheid, en boomgaard en vrachtwagens laten meegroeien. Bij Upgrades vind je flinke bonussen. Volg nu de doelen bovenaan!',
+    text: 'Dat is het geheim: upgraden voor geld, sterren voor snelheid, en boomgaard en vervoer laten meegroeien. Bij Upgrades vind je flinke bonussen. Volg nu de doelen bovenaan!',
     target: null,
     button: 'Aan de slag',
   },

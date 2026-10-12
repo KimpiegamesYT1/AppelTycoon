@@ -233,7 +233,7 @@ export class UI {
 
   // ---------- Sterren ----------
 
-  // Lijnen: sterren (snelheid x2). Boomgaard: extra plukkers. Vrachtwagens: extra laadplekken.
+  // Lijnen: sterren (snelheid x2). Boomgaard: extra plukkers. Vervoer: extra (en grotere) voertuigen.
   marks(kind) { return kind === 'line' ? STARS : kind === 'orchard' ? PICKER_LEVELS : DOCK_LEVELS; }
 
   starProgress(kind, level) {
@@ -302,7 +302,8 @@ export class UI {
           const tNext = E.truckCount(level + q.count);
           chips.push(chip('Vervoer', rate(E.transportRate(s)) + '/s', '→ ' + rate(E.transportRate(after)) + '/s'));
           chips.push(chip('Fabriek maakt', rate(ss.potential) + '/s', '', ss.potential > ss.transport * 1.001 ? 'bad' : ''));
-          chips.push(chip('Vrachtwagens', `${trucks}`, tNext > trucks ? `→ ${tNext}` : ''));
+          const veh = E.vehicle(level), vNext = E.vehicle(level + q.count);
+          chips.push(chip(veh.plural[0].toUpperCase() + veh.plural.slice(1), `${trucks}`, vNext !== veh ? `→ ${vNext.name}` : tNext > trucks ? `→ ${tNext}` : ''));
           chips.push(chip('Magazijn', `${fmt(s.goods)}/${fmt(prod.storeCap)}`, '', prod.storeFull ? 'bad' : ''));
           if (prod.storeFull) extra = warn('Magazijn vol!', '', true);
         } else {
@@ -319,10 +320,10 @@ export class UI {
           // wat de upgrade echt extra oplevert voor je hele fabriek (appels en vrachtwagens meegerekend)
           chips.push(chip('Per minuut', money(ss.lines[st.i].income * 60), '+' + money(Math.max(0, ssNext.income - ss.income) * 60)));
           const nl = ssNext.lines[st.i];
-          if (lp.status === 'full') extra = warn('Magazijn vol!', goTo('sales', 'Vrachtwagens'), true);
+          if (lp.status === 'full') extra = warn('Magazijn vol!', goTo('sales', 'Vervoer'), true);
           else if (lp.status === 'apples') extra = warn('Niet genoeg appels!', goTo('orchard', 'Boomgaard'));
           else if (spNext > sp && nl.status === 'apples') extra = warn('Ster: meer appels nodig!', goTo('orchard', 'Boomgaard'));
-          else if (spNext > sp && nl.status === 'full') extra = warn('Ster: meer vervoer nodig!', goTo('sales', 'Vrachtwagens'));
+          else if (spNext > sp && nl.status === 'full') extra = warn('Ster: meer vervoer nodig!', goTo('sales', 'Vervoer'));
         }
         const html = `
           <div class="lv-head">${this.starBar(st.kind, level)}</div>
@@ -374,7 +375,7 @@ export class UI {
           }
         });
         const use = ssl.transport > 0 ? Math.round(Math.min(1, ssl.potential / ssl.transport) * 100) : 0;
-        html += row({ kind: 'sales' }, glyph('sales'), `Vrachtwagens <span class="lv">Lv ${s.sales}</span>`, `${rate(prod.transport)} kratten/s · bezet ${use}% · magazijn ${fill(s.goods / prod.storeCap)}${prod.storeFull ? ' <span class="bad-text">vol</span>' : ''}`);
+        html += row({ kind: 'sales' }, glyph('sales'), `Vervoer <span class="lv">Lv ${s.sales}</span>`, `${rate(prod.transport)} kratten/s · bezet ${use}% · magazijn ${fill(s.goods / prod.storeCap)}${prod.storeFull ? ' <span class="bad-text">vol</span>' : ''}`);
         return { title: 'Je fabriek', sub: `${TIERS[s.tier].name} · ≈ ${money(E.incomePerSecond(s) * 60)}/min`, html };
       },
     };
@@ -398,7 +399,7 @@ export class UI {
     const series = [
       ['pick', 'Boomgaard plukt', '#3fae4d', 'orchard', { kind: 'orchard' }],
       ['machines', 'Machines verwerken', '#f08a24', 'fresh', null],
-      ['transport', 'Vrachtwagens vervoeren', '#3d8bef', 'sales', { kind: 'sales' }],
+      ['transport', 'Vervoer', '#3d8bef', 'sales', { kind: 'sales' }],
     ];
     return {
       icon: icon('chart'),
@@ -435,7 +436,7 @@ export class UI {
   upgradeDesc(u) {
     const m = 'x' + String(u.mult).replace('.', ',');
     if (u.target === 'orchard') return `Boomgaard ${m}`;
-    if (u.target === 'transport') return `Vrachtwagens ${m}`;
+    if (u.target === 'transport') return `Vervoer ${m}`;
     if (u.target === 'all') return `Alle prijzen ${m}`;
     const l = LINES.find((x) => x.id === u.target);
     return `${l.name} ${u.type === 'price' ? 'prijs' : 'snelheid'} ${m}`;
@@ -624,7 +625,7 @@ export class UI {
     if (kind === 'line') {
       const p = E.computeProduction(this.state, 0, true);
       if (p.lines.some((l) => l.status === 'apples')) hint = 'Boomgaard moet mee!';
-      else if (p.potential > p.transport * 1.001) hint = 'Vrachtwagens moeten mee!';
+      else if (p.potential > p.transport * 1.001) hint = 'Vervoer moet mee!';
     }
     const b = document.createElement('div');
     b.className = 'toast star-toast';
