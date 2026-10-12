@@ -767,7 +767,6 @@ export class UI {
     show('[data-open="stations"]', s.lines[0] > 0);
     show('[data-open="research"]', tut || Object.keys(s.research).length > 0);
     show('[data-open="expand"]', s.lines[1] > 0 || s.tier > 0);
-    show('[data-open="chain"]', s.lines[0] > 0 && tut);
     show('#btn-investors', s.investors > 0 || s.prestiges > 0 || E.pendingInvestors(s) > 0);
   }
 
@@ -802,9 +801,8 @@ export class UI {
     const eb = document.querySelector('[data-open="expand"] .badge');
     eb.classList.toggle('hidden', !canTier);
     eb.textContent = '!';
-    const cb = document.querySelector('[data-open="chain"] .badge');
-    cb.classList.toggle('hidden', !(this.game.prod.binFull || this.game.prod.storeFull));
-    cb.textContent = '!';
+    // rood randje om de ketenbalkjes als het magazijn vol zit (alles loopt dan vast)
+    this.el.chainMini.classList.toggle('alert', this.game.prod.storeFull);
     const ib = document.querySelector('#btn-investors');
     ib.classList.toggle('glow', E.pendingInvestors(s) >= Math.max(5, s.investors * 0.5));
   }

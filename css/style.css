@@ -72,18 +72,19 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 #hud > * { pointer-events: auto; }
 
-/* links: geld met daaronder de ketenbalans in drie balkjes */
-.hud-left { display: flex; flex-direction: column; gap: 6px; }
+/* naast het geld: de ketenbalans in drie balkjes (tik = ketenbalans openen) */
 .chain-mini {
-  display: flex; flex-direction: column; gap: 4px;
-  background: var(--hud); border-radius: 12px; padding: 7px 10px;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
+  display: flex; flex-direction: column; justify-content: center; gap: 5px;
+  align-self: stretch; width: 150px;
+  background: var(--hud); border-radius: 16px; padding: 8px 12px;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18);
 }
-.chain-mini i { display: block; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
-.chain-mini b { display: block; height: 100%; width: 0; border-radius: 3px; transition: width 0.5s ease; }
+.chain-mini i { display: block; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
+.chain-mini b { display: block; height: 100%; width: 0; border-radius: 4px; transition: width 0.5s ease; }
 .chain-mini .cm-pick b { background: #3fae4d; }
 .chain-mini .cm-mach b { background: #f08a24; }
 .chain-mini .cm-trans b { background: #3d8bef; }
+.chain-mini.alert { box-shadow: 0 0 0 3px var(--red), 0 4px 0 rgba(0, 0, 0, 0.18); }
 .money-card {
   display: flex;
   align-items: center;
@@ -634,10 +635,14 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 /* mobiel: het doel is een rond knopje met voortgangsring; tikken klapt het open */
 @media (max-width: 760px) {
-  .hud-center { order: 2; flex: 0 0 auto; flex-basis: auto; margin: 0 0 0 auto; }
+  /* bovenste rij: geld, ketenbalkjes, knoppen; het doel staat eronder, rechts onder het tandwiel */
+  .money-card { order: 1; }
+  .chain-mini { order: 2; flex: 1 1 60px; width: auto; min-width: 54px; }
   .hud-right { order: 3; }
+  .hud-center { order: 4; flex: 0 0 100%; display: flex; justify-content: flex-end; margin: 0; }
   .hud-center:has(#tutorial:not(.hidden)) { order: 4; flex-basis: 100%; margin: 0; }
   .goal:not(.open) {
+    flex: 0 0 46px;
     width: 46px; height: 46px; min-height: 46px; padding: 0; border-radius: 50%;
     justify-content: center; position: relative;
     background: conic-gradient(var(--green) calc(var(--p, 0) * 1%), var(--panel) 0);
