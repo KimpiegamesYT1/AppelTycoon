@@ -259,7 +259,7 @@ export class UI {
 
   amountToggle() {
     const a = this.buyAmount;
-    return `<div class="amounts">${[1, 10, 'max'].map((v) => `<button class="amt ${a === v ? 'on' : ''}" data-action="amount" data-v="${v}">${v === 'max' ? 'MAX' : 'x' + v}</button>`).join('')}</div>`;
+    return `<div class="amounts">${[1, 'max'].map((v) => `<button class="amt ${a === v ? 'on' : ''}" data-action="amount" data-v="${v}">${v === 'max' ? 'MAX' : 'x' + v}</button>`).join('')}</div>`;
   }
 
   buyButton(kind, i, label = 'Upgrade') {

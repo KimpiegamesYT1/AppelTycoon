@@ -355,9 +355,10 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 .amt.on { background: var(--ink); color: #fff; box-shadow: 0 3px 0 #000; }
 
-.buy-row { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
-.buy-row .amounts { flex-direction: column; gap: 5px; }
-.buy-row .amt { padding: 5px 8px; font-size: 12px; }
+.buy-row { display: flex; gap: 10px; align-items: stretch; margin-top: 12px; }
+/* x1 en MAX samen precies even hoog als de upgradeknop */
+.buy-row .amounts { flex-direction: column; gap: 6px; padding-bottom: 4px; }
+.buy-row .amt { flex: 1; padding: 0 10px; font-size: 13px; min-width: 52px; display: grid; place-items: center; }
 .buy { flex: 1; flex-direction: column; padding: 12px; font-size: 18px; }
 [data-hold] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: none; }
 .btn.held { transform: translateY(3px); box-shadow: 0 1px 0 var(--green-d); }
@@ -912,8 +913,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .sheet-station .staff-strip { min-height: 38px; margin-top: 6px; padding: 3px 6px; }
   .sheet-station .staff-strip .sc-ava { width: 28px; height: 28px; }
   .sheet-station   .sheet-station .buy-row { margin-top: 8px; gap: 8px; }
-  .sheet-station .buy-row .amounts { gap: 4px; }
-  .sheet-station .buy-row .amt { padding: 4px 8px; }
+  .sheet-station .buy-row .amounts { gap: 6px; }
   .sheet-station .buy { padding: 8px; font-size: 16px; }
   .sheet-station .buy-c { font-size: 20px; }
 }
