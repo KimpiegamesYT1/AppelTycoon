@@ -49,12 +49,19 @@ export function nextStar(level) {
   return null;
 }
 
-// Wat een ster oplevert. Lijnen: snelheid x2 (dus ook dubbel zoveel appels en kratten).
+// Wat een ster oplevert. Lijnen: om en om snelheid x2 (eerste ster) en prijs x2, zodat oude lijnen
+// waardevol blijven zonder enorme hoeveelheden appels te vragen.
 // Boomgaard: een extra plukker (alleen te zien). Vrachtwagens: een extra laadplek met vrachtwagen.
-export function starReward(kind) {
+export function starReward(kind, starLevel = STARS[0]) {
   if (kind === 'orchard') return { type: 'picker', text: 'Extra plukker' };
   if (kind === 'sales') return { type: 'truck', text: 'Extra vrachtwagen' };
-  return { type: 'speed', text: 'Snelheid x2' };
+  return STARS.indexOf(starLevel) % 2 === 0 ? { type: 'speed', text: 'Snelheid x2' } : { type: 'price', text: 'Prijs x2' };
+}
+
+// aantal sterren met snelheid x2 en met prijs x2 voor een lijn
+export function lineStars(level) {
+  const n = starCount(level);
+  return { speed: Math.ceil(n / 2), price: Math.floor(n / 2) };
 }
 
 // Vermenigvuldiger uit gekochte upgrades voor een doel ('fresh', 'orchard', 'transport', 'all') en type.
@@ -86,16 +93,16 @@ export function orchardRate(state, level = state.orchard) {
 }
 
 // Prijs van één product (zonder de algemene prijsbonussen van uitbreidingen, reclame en investeerders).
-// Elk level telt de basisprijs erbij op; prijs-upgrades vermenigvuldigen.
+// Elk level telt de basisprijs erbij op; prijs-sterren en prijs-upgrades vermenigvuldigen.
 export function lineValue(state, i, level = state.lines[i]) {
   const L = Math.max(1, level);
-  return LINES[i].value * L * upgradeMult(state, LINES[i].id, 'price');
+  return LINES[i].value * L * 2 ** lineStars(L).price * upgradeMult(state, LINES[i].id, 'price');
 }
 
 // Stuks per seconde van een lijn: alleen sterren en upgrades maken een machine sneller.
 export function lineRate(state, i, level = state.lines[i]) {
   if (level <= 0) return 0;
-  return LINES[i].rate * 2 ** starCount(level) * upgradeMult(state, LINES[i].id, 'speed');
+  return LINES[i].rate * 2 ** lineStars(level).speed * upgradeMult(state, LINES[i].id, 'speed');
 }
 
 // Hoeveel kratten per seconde de vrachtwagens wegbrengen.

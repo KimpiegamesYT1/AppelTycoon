@@ -232,7 +232,7 @@ export class UI {
     if (!next) return '';
     const pct = Math.round(this.starProgress(kind, level) * 100);
     return `<div class="star-bar"><div class="bar"><i style="width:${pct}%"></i></div>
-      <span class="sb-goal">${icon('star')}<b>Lv ${next}</b>${E.starReward(kind).text}</span></div>`;
+      <span class="sb-goal">${icon('star')}<b>Lv ${next}</b>${E.starReward(kind, next).text}</span></div>`;
   }
 
   // Kaart van één station, zoals in Eatventure: level, sterren, balk naar de volgende ster,

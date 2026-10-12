@@ -4,7 +4,7 @@ import { UI } from './ui.js';
 import { sfx, setSound, initMusic, setMusic } from './audio.js';
 import { glyph } from './icons.js';
 import { TUTORIAL } from './tutorial.js';
-import { LINES, TIERS, GOLDEN, OFFLINE, INVESTOR_BONUS, UPGRADES, PICKER_LEVELS, DOCK_LEVELS } from './config.js';
+import { LINES, TIERS, GOLDEN, OFFLINE, INVESTOR_BONUS, UPGRADES, PICKER_LEVELS, DOCK_LEVELS, STARS } from './config.js';
 import { goalAt, goalProgress, goalReward } from './goals.js';
 import { money, fmt } from './format.js';
 
@@ -90,7 +90,7 @@ const game = {
     if (stars > 0) {
       sfx.milestone();
       const name = kind === 'line' ? LINES[i].name : kind === 'orchard' ? 'Boomgaard' : 'Vrachtwagens';
-      ui.starBanner(name, E.starReward(kind).text, count(after), kind);
+      ui.starBanner(name, E.starReward(kind, STARS[count(after) - 1]).text, count(after), kind);
       world.burst(world.stationPos(st).setY(3), 80);
     } else {
       sfx.levelUp(ui.starProgress(kind, after));

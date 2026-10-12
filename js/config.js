@@ -13,7 +13,7 @@ export const ORCHARD = {
   baseRate: 1.5,      // appels per seconde op level 1
   levelGrowth: 1.25,  // elk level +25% appels
   baseCost: 60,
-  growth: 2.6,
+  growth: 4,
   binSeconds: 20,     // de appelbak houdt 20 seconden pluk vast
   binMin: 15,
 };
@@ -23,7 +23,7 @@ export const SALES = {
   baseRate: 1.5,      // kratten per seconde per vrachtwagen op level 1
   levelGrowth: 1.25,  // elk level +25% lading; op DOCK_LEVELS een extra vrachtwagen
   baseCost: 100,
-  growth: 2.6,
+  growth: 4,
   storeSeconds: 30,   // het magazijn houdt 30 seconden transport vast
   storeMin: 20,
 };

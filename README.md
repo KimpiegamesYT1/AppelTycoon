@@ -23,7 +23,7 @@ Je begint met een schuurtje, een paar appelbomen en één vrachtwagen. Een korte
 
 - **Boomgaard** – plukkers vullen de appelbak. Is de bak vol, dan stoppen ze met plukken. Elk level +25% appels.
 - **8 productielijnen** – Verse Appels, Appelsap, Appelmoes, Appelchips, Appeltaart, Appelcider, Appelstroop en Karamelappels.
-- **Upgraden werkt zoals in Eatventure:** elk level maakt je product meer waard (prijs × level), dat merk je meteen. Op level 10, 25, 50, 75, 100, … krijgt een machine een **ster**: hij wordt twee keer zo snel. Een balk in de kaart loopt vol naar de volgende ster, en een grote melding vertelt wat je kreeg (en of je boomgaard of vrachtwagens mee moeten).
+- **Upgraden werkt zoals in Eatventure:** elk level maakt je product meer waard (prijs × level), dat merk je meteen. Op level 10, 25, 50, 75, 100, … krijgt een machine een **ster**: om en om twee keer zo snel (meer appels nodig) of twee keer zo veel waard. Zo blijven ook je oudste lijnen de moeite waard. Een balk in de kaart loopt vol naar de volgende ster, en een grote melding vertelt wat je kreeg (en of je boomgaard of vrachtwagens mee moeten).
 - **De keten moet meegroeien:** een snellere machine heeft meer appels en meer vrachtwagenruimte nodig. Te weinig appels en hij draait langzamer; kunnen de vrachtwagens het niet bijhouden, dan loopt het magazijn vol en lopen je lijnen vast.
 - **Geld verdien je alleen met verkochte producten**: een vrachtwagen laadt kratjes aan de deur, vertrekt (dan is de lading verkocht) en komt leeg terug. Vrachtwagens vertrekken nooit leeg.
 - **Vrachtwagens** – elk level +25% lading. Op level 10, 20, 30, 40 en 50 komt er een laadplek met een extra vrachtwagen bij.
@@ -45,7 +45,7 @@ node tools/balance-sim.mjs 480 --prestige  # met investeerdersrondes
 node tools/calibrate.mjs --write           # bouwprijzen van lijnen en hallen afstemmen op doeltijden
 ```
 
-Richtwaarden voor de bot (een echte speler doet er langer over): Appelsap ~2 min, Werkplaats ~6, Appelmoes ~8, Fabriek ~12, Appelchips ~18, Grote Fabriek ~23, Appeltaart ~26, Industriehal ~45, Appelcider ~50, Megafabriek ~66, Appelstroop ~76. Eerste investeerders (+20, dus +100% inkomen) na ~1u30; ronde 2 duurt ~1 uur (met Gigafabriek), ronde 3 ~45 min (met Karamelappels). Lijn-upgrades verdienen zich in de eerste ronde in 0,5–2,5 minuut terug; een boomgaard- of vrachtwagen-upgrade kost meestal 5–25 seconden inkomen (de simulatie print beide).
+Richtwaarden voor de bot (een echte speler doet er langer over): Fabriek ~12 min, Grote Fabriek ~21, Industriehal ~42, Megafabriek ~64, Appelstroop ~74, Gigafabriek ~1u40. Eerste investeerders (+20, dus +100% inkomen) na ~1u30; ronde 2 ~1u45 (met Gigafabriek), ronde 3 ~1u15 (met Karamelappels), daarna steeds sneller. Lijn-upgrades verdienen zich in de eerste ronde in 0,5–2,5 minuut terug; een boomgaard- of vrachtwagen-upgrade kost meestal 5–25 seconden inkomen (de simulatie print beide).
 
 ## Techniek
 
