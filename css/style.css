@@ -363,6 +363,11 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .tip { background: #eef6ff; border-radius: 12px; padding: 9px 12px; font-size: 14px; margin: 8px 0; color: #2b4a73; line-height: 1.35; }
 .tip.warn { background: #fff0e6; color: #8a3b00; }
 .tip.small { font-size: 12.5px; }
+.alert-pill { display: flex; align-items: center; gap: 8px; background: #fff0e0; border: 2px solid #ffc98f; color: #a24a00; border-radius: 14px; padding: 6px 6px 6px 12px; margin: 8px 0 4px; min-height: 44px; }
+.alert-pill .ic { font-size: 18px; flex-shrink: 0; }
+.alert-pill b { flex: 1; font-size: 15.5px; }
+.alert-pill .btn { margin: 0; flex-shrink: 0; }
+.alert-pill.bad { background: #ffeceb; border-color: #ffb1ab; color: #c0392b; }
 .tip .btn { margin-top: 6px; }
 .tip .ic { font-size: 16px; }
 

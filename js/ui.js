@@ -251,7 +251,8 @@ export class UI {
         else after.lines[st.i] += q.count;
         const ssNext = E.computeProduction(after, 0, true);
         const goTo = (kind, label) => `<button class="btn small" data-action="station" data-st='{"kind":"${kind}"}'>${label}</button>`;
-        const warn = (text, btn = '') => `<div class="tip warn">${icon('alert')}<span>${text}</span>${btn}</div>`;
+        // korte, strakke melding met een knop naar de oplossing
+        const warn = (text, btn = '', bad = false) => `<div class="alert-pill ${bad ? 'bad' : ''}">${icon('alert')}<b>${text}</b>${btn}</div>`;
         const chip = (label, value, up = '', cls = '') => `<div class="chip-stat ${cls}"><small>${label}</small><b>${value}</b>${up ? `<em>${up}</em>` : ''}</div>`;
         const demand = LINES.reduce((t, l, i) => t + E.lineRate(s, i) * l.apples, 0);
         let title;
@@ -262,9 +263,9 @@ export class UI {
           chips.push(chip('Plukken', rate(E.orchardRate(s)) + '/s', '→ ' + rate(E.orchardRate(after)) + '/s'));
           chips.push(chip('Machines willen', rate(demand) + '/s', '', demand > E.orchardRate(s) * 1.02 ? 'bad' : ''));
           chips.push(chip('Appelbak', `${fmt(s.apples)}/${fmt(prod.binCap)}`, '', prod.binFull ? 'bad' : ''));
-          if (prod.binFull && demand <= 0) extra = warn('Appelbak vol: bouw een machine om de appels te verwerken.');
-          else if (prod.binFull) extra = warn('Appelbak vol: je plukkers staan stil. Je machines kunnen niet meer aan.', goTo('stations', 'Machines'));
-          else if (demand > E.orchardRate(s) * 1.02) extra = warn(`Te weinig appels: je machines willen ${rate(demand)}/s.`);
+          if (prod.binFull && demand <= 0) extra = warn('Appelbak vol!', goTo('stations', 'Machines'));
+          else if (prod.binFull) extra = warn('Appelbak vol!', goTo('stations', 'Machines'));
+          else if (demand > E.orchardRate(s) * 1.02) extra = warn('Niet genoeg appels!');
         } else if (st.kind === 'sales') {
           title = SALES.name;
           const trucks = E.truckCount(level);
@@ -273,7 +274,7 @@ export class UI {
           chips.push(chip('Fabriek maakt', rate(ss.potential) + '/s', '', ss.potential > ss.transport * 1.001 ? 'bad' : ''));
           chips.push(chip('Vrachtwagens', `${trucks}`, tNext > trucks ? `→ ${tNext}` : ''));
           chips.push(chip('Magazijn', `${fmt(s.goods)}/${fmt(prod.storeCap)}`, '', prod.storeFull ? 'bad' : ''));
-          if (prod.storeFull) extra = warn(`Magazijn vol: je lijnen lopen vast. De fabriek maakt ${rate(ss.potential)} kratten/s, je vervoert er ${rate(ss.transport)}.`);
+          if (prod.storeFull) extra = warn('Magazijn vol!', '', true);
         } else {
           const l = LINES[st.i];
           const lp = prod.lines[st.i];
@@ -288,10 +289,10 @@ export class UI {
           // wat de upgrade echt extra oplevert voor je hele fabriek (appels en vrachtwagens meegerekend)
           chips.push(chip('Per minuut', money(ss.lines[st.i].income * 60), '+' + money(Math.max(0, ssNext.income - ss.income) * 60)));
           const nl = ssNext.lines[st.i];
-          if (lp.status === 'full') extra = warn('Magazijn vol: de vrachtwagens kunnen het niet bijhouden.', goTo('sales', 'Vrachtwagens'));
-          else if (lp.status === 'apples') extra = warn(`Te weinig appels: deze machine kan ${rate(lp.max)}/s maken, maar krijgt appels voor ${rate(lp.rate)}/s.`, goTo('orchard', 'Boomgaard'));
-          else if (spNext > sp && nl.status === 'apples') extra = warn('Na deze ster is de machine twee keer zo snel: upgrade ook de boomgaard.', goTo('orchard', 'Boomgaard'));
-          else if (spNext > sp && nl.status === 'full') extra = warn('Na deze ster is de machine twee keer zo snel: upgrade ook de vrachtwagens.', goTo('sales', 'Vrachtwagens'));
+          if (lp.status === 'full') extra = warn('Magazijn vol!', goTo('sales', 'Vrachtwagens'), true);
+          else if (lp.status === 'apples') extra = warn('Niet genoeg appels!', goTo('orchard', 'Boomgaard'));
+          else if (spNext > sp && nl.status === 'apples') extra = warn('Ster: meer appels nodig!', goTo('orchard', 'Boomgaard'));
+          else if (spNext > sp && nl.status === 'full') extra = warn('Ster: meer vervoer nodig!', goTo('sales', 'Vrachtwagens'));
         }
         const html = `
           <div class="lv-head">${this.starBar(st.kind, level)}</div>
@@ -354,9 +355,9 @@ export class UI {
     if (!s.lines.some((x) => x > 0)) return '';
     const c = E.chainBalance(s);
     const info = {
-      pick: ['orchard', 'De boomgaard plukt te weinig appels', { kind: 'orchard' }],
-      machines: ['fresh', 'Je machines kunnen het niet bijhouden', null],
-      transport: ['sales', 'Je vrachtwagens kunnen het niet bijhouden', { kind: 'sales' }],
+      pick: ['orchard', 'Niet genoeg appels', { kind: 'orchard' }],
+      machines: ['fresh', 'Machines te traag', null],
+      transport: ['sales', 'Te weinig vervoer', { kind: 'sales' }],
     }[c.weakest];
     const btn = info[2] ? `<button class="btn small" data-action="station" data-st='${JSON.stringify(info[2])}'>Bekijk</button>` : '';
     return `<div class="weak-box">${glyph(info[0])}<div><b>Zwakste schakel</b><br><small>${info[1]}</small></div>${btn}</div>`;
