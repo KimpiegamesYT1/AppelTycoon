@@ -12,6 +12,9 @@ function ac() {
   if (!ctx) {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
+    // iPhone/iPad (Safari 16.4+): 'ambient' laat muziek uit een andere app gewoon doorspelen
+    // in plaats van die te stoppen, en volgt de stil-schakelaar.
+    try { if (navigator.audioSession) navigator.audioSession.type = 'ambient'; } catch { /* niet ondersteund */ }
     // 'balanced' geeft een iets grotere buffer: minder haperingen op drukke telefoons
     try { ctx = new AC({ latencyHint: 'balanced' }); } catch { ctx = new AC(); }
     master = ctx.createDynamicsCompressor();
