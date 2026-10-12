@@ -171,8 +171,19 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.12);
   font-size: 14.5px;
   line-height: 1.3;
-  animation: pop 0.3s ease-out;
+  transition: opacity 0.3s, transform 0.3s, border-color 0.3s, background-color 0.3s;
 }
+.tutorial.tut-in { animation: tutIn 0.45s cubic-bezier(0.2, 1.3, 0.4, 1); }
+.tutorial.tut-out { opacity: 0; transform: translateY(-8px) scale(0.97); }
+.tutorial.tut-done { border-color: var(--green); background: #f1fbf0; }
+.tutorial.tut-done .tut-head { color: var(--green-d); }
+.tutorial.tut-done .tut-head .ic { stroke-width: 3; }
+.tutorial.tut-done .tut-head > span:first-child { display: none; }
+@keyframes tutIn { from { opacity: 0; transform: translateY(-10px) scale(0.96); } }
+.tut-dots { display: inline-flex; gap: 4px; align-items: center; }
+.tut-dots i { width: 7px; height: 7px; border-radius: 50%; background: #f3d7b8; transition: background 0.3s, width 0.3s; }
+.tut-dots i.past { background: var(--orange); }
+.tut-dots i.cur { width: 18px; border-radius: 4px; background: var(--orange); }
 .tut-head { display: flex; align-items: center; gap: 6px; color: var(--orange-d); font-size: 12.5px; font-weight: 700; margin-bottom: 3px; }
 .tut-head .ic { font-size: 15px; }
 .tutorial .btn { margin-top: 8px; }
@@ -506,6 +517,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   pointer-events: none;
   width: min(420px, calc(100% - 20px));
 }
+/* tijdens de intro staan meldingen onder het tutorial-blok, zodat ze de tekst niet bedekken */
+body:has(#tutorial:not(.hidden)) #toasts { top: calc(var(--tut-bottom, 190px) + 8px); }
 .toast {
   background: var(--hud);
   color: #fff;

@@ -577,7 +577,8 @@ export class UI {
 
   welcome() {
     this.modal(`<div class="modal-icon">${glyph('fresh')}</div><h2>Appel Tycoon</h2>
-      <p>Begin met een klein schuurtje en een paar appelbomen, en bouw het uit tot een gigantische fabriek. We beginnen rustig: volg de stappen bovenaan.</p>
+      <p>Je begint met een klein schuurtje en een paar appelbomen. Maak er appelproducten van, verkoop ze en groei uit tot een enorme fabriek.</p>
+      <p>Bovenin helpen we je stap voor stap op weg.</p>
       <button class="btn green wide" data-action="modal-close">Starten!</button>`, true);
   }
 
@@ -679,31 +680,77 @@ export class UI {
 
   // ---------- Tutorial ----------
 
+  // De tutorial loopt rustig: elke stap blijft minstens even staan (zodat je hem kunt lezen),
+  // een gehaalde stap krijgt eerst een vinkje, en dan schuift de volgende er soepel in.
   advanceTutorial() {
     const s = this.state;
-    if (tutorialDone(s)) return;
-    s.tutorial++;
-    sfx.coin();
-    this.updateTutorial();
+    if (tutorialDone(s) || this.tutPhase === 'done' || this.tutPhase === 'out') return;
+    this.finishTutStep(false);
+  }
+
+  finishTutStep(praise = true) {
+    const s = this.state;
+    const el = this.el.tut;
+    this.tutPhase = 'done';
+    this.tutTarget = null;
+    if (praise) {
+      el.classList.add('tut-done');
+      this.el.tutStep.innerHTML = `${icon('check')} Goed zo!`;
+      this.el.tutBtn.classList.add('hidden');
+      sfx.coin();
+    } else sfx.click();
+    clearTimeout(this.tutTimer);
+    this.tutTimer = setTimeout(() => {
+      this.tutPhase = 'out';
+      el.classList.add('tut-out');
+      this.tutTimer = setTimeout(() => {
+        s.tutorial++;
+        el.classList.remove('tut-done', 'tut-out');
+        this.tutPhase = null;
+        this.tutShown = -1;
+        this.updateTutorial();
+      }, 320);
+    }, praise ? 1300 : 0);
+  }
+
+  showTutStep() {
+    const s = this.state;
+    const step = TUTORIAL[s.tutorial];
+    const el = this.el.tut;
+    this.tutShown = s.tutorial;
+    this.tutPhase = 'show';
+    this.tutSince = performance.now();
+    // leestijd: ongeveer 4 woorden per seconde, minstens 2,5 en hooguit 6 seconden
+    this.tutMin = Math.min(6000, Math.max(2500, step.text.split(/\s+/).length * 250));
+    const dots = TUTORIAL.map((_, k) => `<i class="${k < s.tutorial ? 'past' : k === s.tutorial ? 'cur' : ''}"></i>`).join('');
+    this.el.tutStep.innerHTML = `<span class="tut-dots">${dots}</span>`;
+    this.el.tutText.textContent = step.text;
+    this.el.tutBtn.textContent = step.button || '';
+    this.el.tutBtn.classList.toggle('hidden', !step.button);
+    // opnieuw laten inschuiven
+    el.classList.remove('tut-in');
+    void el.offsetWidth;
+    el.classList.add('tut-in');
+    this.tutTarget = step.target ? JSON.stringify(step.target) : null;
+    if (step.target) this.game.world.focus(step.target);
+    requestAnimationFrame(() => {
+      const r = el.getBoundingClientRect();
+      if (r.height) document.body.style.setProperty('--tut-bottom', `${Math.round(r.bottom)}px`);
+    });
   }
 
   updateTutorial() {
     const s = this.state;
+    if (this.tutPhase === 'done' || this.tutPhase === 'out') return;
+    // stappen die je al gedaan hebt slaan we over zonder ze te tonen
+    while (!tutorialDone(s) && this.tutShown !== s.tutorial && TUTORIAL[s.tutorial].done && TUTORIAL[s.tutorial].done(s)) s.tutorial++;
     const done = tutorialDone(s);
     this.el.tut.classList.toggle('hidden', done);
     this.el.goal.classList.toggle('hidden', !done);
     if (done) { this.tutTarget = null; return; }
+    if (this.tutShown !== s.tutorial) { this.showTutStep(); return; }
     const step = TUTORIAL[s.tutorial];
-    if (step.done && step.done(s)) { this.advanceTutorial(); return; }
-    if (this.tutShown !== s.tutorial) {
-      this.tutShown = s.tutorial;
-      this.el.tutStep.textContent = `Stap ${s.tutorial + 1} van ${TUTORIAL.length}`;
-      this.el.tutText.textContent = step.text;
-      this.el.tutBtn.textContent = step.button || '';
-      this.el.tutBtn.classList.toggle('hidden', !step.button);
-      this.tutTarget = step.target ? JSON.stringify(step.target) : null;
-      if (step.target) this.game.world.focus(step.target);
-    }
+    if (step.done && step.done(s) && performance.now() - this.tutSince >= this.tutMin) this.finishTutStep(true);
   }
 
   // Knoppen pas tonen als ze nodig zijn, zodat het begin overzichtelijk blijft.
@@ -814,17 +861,12 @@ export class UI {
         const status = prod.lines[st.i].status;
         if (status === 'full') warn = '<span class="warn-dot bad">!</span>';
         else if (status === 'apples') warn = '<span class="warn-dot">!</span>';
-        // balkje naar de volgende ster
-        const pct = Math.round(this.starProgress('line', lv) * 20) * 5;
-        bar = `<span class="lb-bar star"><i style="width:${pct}%"></i></span>`;
       } else {
         const f = st.kind === 'orchard' ? s.apples / prod.binCap : s.goods / prod.storeCap;
         const pct = Math.round(Math.min(1, f) * 20) * 5;
         bar = `<span class="lb-bar ${pct >= 97 ? 'full' : ''}"><i style="width:${pct}%"></i></span>${pct >= 97 ? '<span class="lb-full">VOL</span>' : ''}`;
       }
-      const stars = this.marks(st.kind).filter((x) => lv >= x).length;
-      const star = st.kind === 'line' && stars > 0 ? `<span class="lb-star">${icon('star')}${stars}</span>` : '';
-      html = `<span class="lb-icon">${stationGlyph(st, LINES)}</span><span class="lb-lv">Lv ${lv}</span>${star}${bar}${warn}${can ? `<span class="up">${icon('up')}</span>` : ''}`;
+      html = `<span class="lb-icon">${stationGlyph(st, LINES)}</span><span class="lb-lv">Lv ${lv}</span>${bar}${warn}${can ? `<span class="up">${icon('up')}</span>` : ''}`;
     } else if (st.kind === 'unlock') {
       const l = LINES[st.i];
       can = s.money >= l.unlock;

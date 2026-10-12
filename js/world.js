@@ -1006,7 +1006,12 @@ export class World {
 
   focus(st) {
     const p = this.stationPos(st);
-    if (p) this.goal = p.clone().setY(0);
+    if (!p) return;
+    // vloeiend (in en uit) naar het station schuiven; langere afstanden duren iets langer
+    this.goal = p.clone().setY(0);
+    this.goalFrom = this.target.clone();
+    this.goalT = 0;
+    this.goalDur = Math.min(1.3, Math.max(0.6, this.goalFrom.distanceTo(this.goal) / 30));
   }
 
   stationPos(st) {
@@ -1126,8 +1131,11 @@ export class World {
 
     // camera traagheid / focus
     if (this.goal) {
-      this.target.lerp(this.goal, Math.min(1, dt * 2.5));
-      if (this.target.distanceTo(this.goal) < 0.05) this.goal = null;
+      this.goalT = Math.min(1, this.goalT + dt / this.goalDur);
+      const k = this.goalT;
+      const e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
+      this.target.lerpVectors(this.goalFrom, this.goal, e);
+      if (k >= 1) this.goal = null;
     } else if (!this.dragging && this.velocity.lengthSq() > 25) {
       this.pan(this.velocity.x * dt, this.velocity.y * dt);
       this.velocity.multiplyScalar(Math.pow(0.003, dt));
