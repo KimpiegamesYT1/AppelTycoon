@@ -219,7 +219,7 @@ class PathMover {
 }
 
 export class World {
-  constructor(canvas, { quality = 'high', onTap = () => {} } = {}) {
+  constructor(canvas, { quality = 'auto', onTap = () => {} } = {}) {
     this.canvas = canvas;
     this.onTap = onTap;
     this.quality = quality;
@@ -273,14 +273,15 @@ export class World {
     window.addEventListener('resize', () => this.resize());
   }
 
-  // Hoog: scherpe beelden (tot 3x pixeldichtheid) met zachte schaduwen.
+  // Hoog: altijd scherpe beelden (tot 3x pixeldichtheid) met zachte schaduwen.
+  // Auto (standaard): als Hoog, maar een regelaar houdt het spel vloeiend op minder snelle toestellen (zie perfSample).
   // Zuinig: tot 1,5x pixeldichtheid, geen schaduwen en 30 beelden per seconde (zie main.js).
-  // Op 'hoog' houdt een regelaar het spel vloeiend op minder snelle toestellen (zie perfSample).
   setQuality(q) {
+    if (q !== this.quality) this.perf = null;
     this.quality = q;
-    const high = q === 'high';
+    const high = q !== 'low';
     const dpr = window.devicePixelRatio || 1;
-    const p = PERF_LEVELS[high ? this.perfLevel || 0 : 0];
+    const p = PERF_LEVELS[q === 'auto' ? this.perfLevel || 0 : 0];
     this.renderer.setPixelRatio(high ? Math.min(dpr, p.dpr) : Math.min(dpr, 1.5));
     this.sun.castShadow = high;
     const size = high ? p.shadowMap : 2048;
@@ -296,7 +297,7 @@ export class World {
   // (gemiddeld onder ~45 beelden per seconde), dan gaat hij een stapje lager: eerst de schaduwen
   // om het andere beeld bijwerken (niet te zien), dan iets minder pixels. Snelle toestellen merken niets.
   perfSample(raw) {
-    if (this.quality !== 'high') return;
+    if (this.quality !== 'auto') return;
     const pf = this.perf || (this.perf = { sum: 0, n: 0, since: 0, bad: 0, good: 0, ups: 0 });
     // na een pauze (andere app, laden, nieuwe hal) even niet meten
     if (raw > 1) { pf.sum = 0; pf.n = 0; pf.since = 0; return; }
@@ -563,8 +564,10 @@ export class World {
     const colOut = M.conveyor(DEPOT_IN - 21.95);
     colOut.position.set(21.95, 0.25, FEED_Z);
     g.add(colOut);
-    this.feeder = new Belt([[feedStart + 0.1, FEED_Z], [0, FEED_Z], [0, zLast]], 0.42);
-    this.collector = new Belt([[21.5, zLast], [21.5, FEED_Z], [DEPOT_IN, FEED_Z]], 0.56, 4.8);
+    // de toevoer- en verzamelband lopen sneller dan de lijnbanden: ze moeten alle lijnen tegelijk
+    // bedienen, en zo blijft er altijd ruimte om appels af te nemen en producten in te voegen
+    this.feeder = new Belt([[feedStart + 0.1, FEED_Z], [0, FEED_Z], [0, zLast]], 0.42, 4.5);
+    this.collector = new Belt([[21.5, zLast], [21.5, FEED_Z], [DEPOT_IN, FEED_Z]], 0.5, 6.5);
     this.feedJoin = (i) => (0 - (feedStart + 0.1)) + (lineZ(i) - FEED_Z);
     this.colJoin = (i) => zLast - lineZ(i);
     this.feedTimer = 0;

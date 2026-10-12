@@ -56,8 +56,9 @@ const firstVisit = !loaded || state.migrated;
 const upgradedFrom = state.upgradedFrom;
 delete state.migrated;
 delete state.upgradedFrom;
-// standaard scherp; alleen als de speler zelf Laag kiest blijft dat bewaard
-if (state.settings.quality === 'auto' || !state.settings.qualityChosen) state.settings.quality = 'high';
+// standaard Auto (de prestatieregelaar past de beeldkwaliteit aan het toestel aan);
+// alleen als de speler zelf Zuinig of Hoog kiest blijft dat bewaard
+if (!state.settings.qualityChosen || !['low', 'high', 'auto'].includes(state.settings.quality)) state.settings.quality = 'auto';
 setSound(state.settings.sound);
 initMusic('assets/audio/factory-flow.mp3?v=' + (window.APP_VERSION || ''), state.settings.music);
 
@@ -277,7 +278,7 @@ function frame(t) {
 
   // Zuinig: hooguit 30 beelden per seconde tekenen (de economie loopt gewoon door)
   renderAcc += raw;
-  if (state.settings.quality !== 'high' && renderAcc < 1 / 30 - 0.004) return;
+  if (state.settings.quality === 'low' && renderAcc < 1 / 30 - 0.004) return;
   const dt = Math.min(0.1, renderAcc);
   renderAcc = 0;
 

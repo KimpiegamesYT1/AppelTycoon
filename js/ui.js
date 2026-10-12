@@ -134,7 +134,7 @@ export class UI {
       case 'modal-close': this.closeModal(); break;
       case 'sound': g.setSound(!this.state.settings.sound); break;
       case 'music': g.setMusic(!this.state.settings.music); break;
-      case 'quality': g.setQuality(d.v || (this.state.settings.quality === 'high' ? 'low' : 'high')); break;
+      case 'quality': g.setQuality(d.v || 'auto'); break;
       case 'save': g.save(); this.toast('Spel opgeslagen', 'save'); break;
       case 'reset-confirm': this.confirmReset(); break;
       case 'reset': g.hardReset(); break;
@@ -552,8 +552,8 @@ export class UI {
         const html = `
           <div class="list-row"><span class="li-text"><b>Muziek</b><small>Factory Flow</small></span><button class="btn small ${s.settings.music ? 'green' : ''}" data-action="music">${s.settings.music ? 'Aan' : 'Uit'}</button></div>
           <div class="list-row"><span class="li-text"><b>Geluidseffecten</b></span><button class="btn small ${s.settings.sound ? 'green' : ''}" data-action="sound">${s.settings.sound ? 'Aan' : 'Uit'}</button></div>
-          <div class="list-row"><span class="li-text"><b>Graphics</b><small>Zuinig: geen schaduwen, 30 fps</small></span>
-            <div class="amounts"><button class="amt ${s.settings.quality === 'high' ? 'on' : ''}" data-action="quality" data-v="high">Hoog</button><button class="amt ${s.settings.quality !== 'high' ? 'on' : ''}" data-action="quality" data-v="low">Zuinig</button></div></div>
+          <div class="list-row"><span class="li-text"><b>Graphics</b><small>${{ auto: 'Past zich aan', high: 'Altijd scherp', low: 'Spaart batterij' }[s.settings.quality] || ''}</small></span>
+            <div class="amounts">${[['low', 'Zuinig'], ['auto', 'Auto'], ['high', 'Hoog']].map(([v, t]) => `<button class="amt ${s.settings.quality === v ? 'on' : ''}" data-action="quality" data-v="${v}">${t}</button>`).join('')}</div></div>
           <div class="stats">
             <div class="row"><span>Speeltijd</span><b>${duration(s.playTime)}</b></div>
             <div class="row"><span>Totaal verdiend</span><b>${money(s.totalEarned)}</b></div>
