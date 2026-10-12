@@ -12,13 +12,13 @@ const SAVE_KEY = 'appeltycoon.save.v1';
 
 function migrate(d) {
   const base = E.newState();
-  // versie 2 en 3 hadden een andere balans: nieuwe ronde, maar investeerders en statistieken blijven
+  // versie 2 t/m 4 hadden een andere balans: nieuwe ronde, maar investeerders en statistieken blijven
   // (vanaf versie 3 blijft ook een afgeronde intro afgerond)
-  if (d.version === 2 || d.version === 3) {
+  if (d.version >= 2 && d.version <= 4) {
     base.settings = { ...base.settings, ...(d.settings || {}) };
     for (const k of ['investors', 'prestiges', 'playTime']) if (Number.isFinite(d[k])) base[k] = d[k];
     base.stats = { ...base.stats, ...(d.stats || {}) };
-    if (d.version === 3 && Number.isFinite(d.tutorial)) base.tutorial = d.tutorial;
+    if (d.version >= 3 && Number.isFinite(d.tutorial)) base.tutorial = d.tutorial;
     base.upgradedFrom = d.version;
     return base;
   }
@@ -90,10 +90,12 @@ const game = {
     const count = (lv) => (marks ? marks.filter((m) => lv >= m).length : E.starCount(lv));
     const stars = count(after) - count(before);
     if (stars > 0) {
-      sfx.milestone();
+      // bij ingedrukt houden komen sterren snel achter elkaar: het feestje hooguit eens per 1,5 s
+      const now = performance.now();
+      const loud = now - (this.lastStarFx || 0) > 1500;
+      if (loud) { sfx.milestone(); world.burst(world.stationPos(st).setY(3), 80); this.lastStarFx = now; } else sfx.levelUp(1);
       const name = kind === 'line' ? LINES[i].name : kind === 'orchard' ? 'Boomgaard' : 'Vrachtwagens';
       ui.starBanner(name, E.starReward(kind, STARS[count(after) - 1]).text, count(after), kind);
-      world.burst(world.stationPos(st).setY(3), 80);
     } else {
       sfx.levelUp(ui.starProgress(kind, after));
     }

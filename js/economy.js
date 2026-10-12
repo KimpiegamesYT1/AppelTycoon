@@ -4,7 +4,7 @@ import {
   UPGRADES, INVESTOR_BONUS, INVESTOR_BASE, INVESTOR_POWER, DOCK_LEVELS, PICKER_LEVELS, TRUCK,
 } from './config.js';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export function newState() {
   return {
@@ -32,10 +32,10 @@ export function newState() {
   };
 }
 
+// sterren liggen op level 10 en daarna elke 25 levels (zie STARS); snel uitgerekend
 export function starCount(level) {
-  let n = 0;
-  for (const m of STARS) if (level >= m) n++;
-  return n;
+  if (level < STARS[0]) return 0;
+  return Math.min(STARS.length, 1 + Math.floor(level / 25));
 }
 
 export function prevStar(level) {

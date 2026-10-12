@@ -608,7 +608,7 @@ export class UI {
   newVersion(from) {
     const what = from === 2
       ? 'Elke upgrade maakt je producten nu meer waard. Bij een <b>ster</b> wordt een machine sneller of meer waard, en in het menu <b>Upgrades</b> vind je flinke bonussen.'
-      : 'De balans is vernieuwd: <b>al je machines verdienen nu mee</b>, niet alleen de nieuwste. Ook de taken, boomgaard en vrachtwagens zijn opnieuw afgesteld.';
+      : 'De balans is vernieuwd: <b>al je machines verdienen mee</b> en er is <b>steeds iets te upgraden</b>, ook als je net een nieuwe lijn hebt. Elke 25 levels krijgt een machine een ster.';
     this.modal(`<div class="modal-icon">${icon('star', 'gold-ic')}</div><h2>Nieuwe versie!</h2>
       <p>${what}</p>
       <p>Je begint een nieuwe ronde. Je <b>${fmt(this.state.investors)} investeerders</b> blijven.</p>

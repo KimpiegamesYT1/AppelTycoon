@@ -61,6 +61,23 @@ export function spend(s, allow) {
     if (o.event) { o.apply(s); s.money -= o.cost; } else { s.money -= bundle(s, { ...o, cost: o.base }).cost; }
     o.gain = E.incomePerSecond(s) - incBefore;
     bought.push(o);
+    // zoals de knop ingedrukt houden: meer levels van dezelfde lijn zolang die bijna even goed renderen
+    const li = o.label.startsWith('line') ? Number(o.label.slice(4)) : -1;
+    if (li >= 0 && o.gain > 0) {
+      const ratio = o.gain / o.cost;
+      for (let k = 0; k < 60; k++) {
+        const q = E.upgradeQuote(s, 'line', li, 1);
+        if (q.cost > s.money) break;
+        const before = E.incomePerSecond(s);
+        s.lines[li]++;
+        const p = E.computeProduction(s, 0, true);
+        const gain = p.income - before;
+        // geen ster die de keten laat vastlopen, en het rendement moet goed blijven
+        if (gain / q.cost < ratio * 0.6 || p.potential > p.transport * 1.001 || p.lines.some((l) => l.status === 'apples')) { s.lines[li]--; break; }
+        s.money -= q.cost;
+        bought.push({ ...o, cost: q.cost, gain, extra: { orchard: 0, sales: 0 } });
+      }
+    }
   }
   return bought;
 }

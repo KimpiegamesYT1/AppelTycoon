@@ -23,7 +23,7 @@ Je begint met een schuurtje, een paar appelbomen en één vrachtwagen. Een korte
 
 - **Boomgaard** – plukkers vullen de appelbak. Is de bak vol, dan stoppen ze met plukken. Elk level +25% appels.
 - **8 productielijnen** – Verse Appels, Appelsap, Appelmoes, Appelchips, Appeltaart, Appelcider, Appelstroop en Karamelappels.
-- **Upgraden werkt zoals in Eatventure:** elk level maakt je product meer waard (prijs × level), dat merk je meteen. Op level 10, 25, 50, 75, 100, … krijgt een machine een **ster**: om en om twee keer zo snel (meer appels nodig) of twee keer zo veel waard. Zo blijven ook je oudste lijnen de moeite waard. Een balk in de kaart loopt vol naar de volgende ster, en een grote melding vertelt wat je kreeg (en of je boomgaard of vrachtwagens mee moeten).
+- **Upgraden werkt zoals in Eatventure:** elk level maakt je product meer waard (prijs × level), dat merk je meteen. Op level 10 en daarna elke 25 levels krijgt een machine een **ster**: om en om twee keer zo snel (meer appels nodig) of twee keer zo veel waard. Een level wordt maar 5,5% duurder, dus door de sterren blijft upgraden steeds lonen; je hoeft nooit lang te wachten. Een balk in de kaart loopt vol naar de volgende ster, en een grote melding vertelt wat je kreeg (en of je boomgaard of vrachtwagens mee moeten).
 - **De keten moet meegroeien:** een snellere machine heeft meer appels en meer vrachtwagenruimte nodig. Te weinig appels en hij draait langzamer; kunnen de vrachtwagens het niet bijhouden, dan loopt het magazijn vol en lopen je lijnen vast.
 - **Geld verdien je alleen met verkochte producten**: een vrachtwagen laadt kratjes aan de deur, vertrekt (dan is de lading verkocht) en komt leeg terug. Vrachtwagens vertrekken nooit leeg.
 - **Vrachtwagens** – elk level +25% lading. Op level 10, 20, 30, 40 en 50 komt er een laadplek met een extra vrachtwagen bij.
@@ -48,12 +48,13 @@ node tools/calibrate.mjs --write           # bouwprijzen van lijnen en hallen af
 
 `balance-check` speelt met vier soorten spelers (slimme speler, gewone speler die elke 20 s het goedkoopste pijltje koopt, luie speler die elke 5 min kijkt, en een speler met investeerdersrondes) plus de intro, en controleert 30 criteria:
 
-- **Tijdlijn eerste ronde (slimme speler):** Werkplaats ~6 min, Fabriek ~13, Grote Fabriek ~20, Industriehal ~33, Megafabriek ~51, Appelstroop ~56. Een gewone speler doet er hooguit 2,5x zo lang over; een luie speler haalt de Grote Fabriek in ruim een uur.
+- **Tijdlijn eerste ronde (slimme speler):** Werkplaats ~6 min, Fabriek ~12, Grote Fabriek ~21, Industriehal ~36, Megafabriek ~53, Appelstroop ~59. Een gewone speler doet er hooguit 2,5x zo lang over; een luie speler haalt de Grote Fabriek in ruim een uur.
+- **Altijd iets te doen:** een gewone speler heeft in het eerste uur maar ~3% van de tijd niets betaalbaars dat zich binnen 5 minuten terugverdient.
 - **Alle machines verdienen mee:** geen enkele machine levert meer dan 60% van het inkomen, de helft van de machines elk minstens 5%. Elk nieuw product levert op hetzelfde level ongeveer 2x zoveel op als het vorige. Bij appeltekort krijgt elke machine naar verhouding minder.
-- **Upgrades lonen:** mediane terugverdientijd van een lijn-upgrade onder 1 minuut in het eerste uur; tot het moment voor investeerders nooit langer dan 12 minuten niets te kopen.
-- **Boomgaard en vrachtwagens** kosten meestal 5–30 seconden inkomen per upgrade (per uitbreiding duurder, maar ook 50% productiever), en lopen nooit vast.
+- **Upgrades lonen:** mediane terugverdientijd van een lijn-upgrade 2–3 minuten.
+- **Boomgaard en vrachtwagens** kosten meestal enkele seconden tot een halve minuut inkomen per upgrade (per uitbreiding duurder, maar ook 50% productiever), en lopen nooit vast.
 - **Taken** geven 4–12 seconden inkomen; er zijn er steeds nieuwe haalbaar.
-- **Investeerders:** eerste +10 rond een uur, als de ronde vlak wordt; daarna rondes van ~50–60 minuten die het inkomen steeds ongeveer verdubbelen, zonder ontsporing.
+- **Investeerders:** eerste +10 rond 55 minuten; daarna rondes van ~35–50 minuten, zonder ontsporing (getallen blijven onder 10^30 na 8 uur).
 
 ## Techniek
 
