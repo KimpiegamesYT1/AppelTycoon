@@ -1136,7 +1136,8 @@ export class UI {
       if (el._hide !== hide) { el._hide = hide; el.style.display = hide ? 'none' : ''; changed = true; }
       if (hide) continue;
       items.push({ el, st: a.st, x: p.x, y: p.y });
-      const tf = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
+      const sc = el._ls && el._ls < 0.999 ? ` scale(${el._ls.toFixed(3)})` : '';
+      const tf = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)${sc} translate(-50%, -100%)`;
       if (el._tf !== tf) { el._tf = tf; el.style.transform = tf; }
     }
     for (const [k, el] of this.labels) {
@@ -1169,13 +1170,9 @@ export class UI {
       it.el.classList.remove('compact', 'slim');
     }
     for (const it of items) if (it.p >= 0) { it.w = it.el.offsetWidth; it.h = it.el.offsetHeight; }
-    // machinebordjes ook in de smalle vorm meten
-    const lineItems = items.filter((it) => it.p >= 0 && it.st.kind === 'line');
-    for (const it of lineItems) it.el.classList.add('slim');
-    for (const it of lineItems) { it.sw = it.el.offsetWidth; it.sh = it.el.offsetHeight; }
     const placed = [];
     // één regel voor 'raakt': de rechthoeken overlappen meer dan 2 pixels in beide richtingen
-    // (zowel bij het kiezen van de vorm als bij het verbergen, anders verdwijnen er losse bordjes)
+    // (zowel bij het kiezen van de grootte als bij het verbergen, anders verdwijnen er losse bordjes)
     const collide = (ra, rb) => Math.min(ra.x1, rb.x1) - Math.max(ra.x0, rb.x0) > 2 && Math.min(ra.y1, rb.y1) - Math.max(ra.y0, rb.y0) > 2;
     const hits = (r) => placed.some((q) => collide(r, q));
     const rect = (it, w, h, pad = 0) => ({ x0: it.x - w / 2 - pad, x1: it.x + w / 2 + pad, y0: it.y - h - pad, y1: it.y + pad });
@@ -1184,39 +1181,43 @@ export class UI {
     const live = items.filter((it) => it.p >= 0);
     const lines = live.filter((it) => it.st.kind === 'line' && it.p < 70);
     const others = live.filter((it) => !(it.st.kind === 'line' && it.p < 70));
-    // drie standen voor alle machinebordjes samen: 0 = volledig, 1 = smal, 2 = rondje
-    const prev = this.linesMode || 0;
-    const fits = (mode) => {
-      const margin = mode < prev ? 6 : 0;
-      const size = (it) => (lines.includes(it) ? (mode === 1 ? [it.sw, it.sh] : [it.w, it.h]) : [it.w, it.h]);
-      const overlap = (a, b) => {
-        const [aw, ah] = size(a), [bw, bh] = size(b);
-        return collide(rect(a, aw, ah, margin / 2), rect(b, bw, bh, margin / 2));
-      };
-      for (let i = 0; i < lines.length; i++) {
-        for (let j = i + 1; j < lines.length; j++) if (overlap(lines[i], lines[j])) return false;
-        // ook als een machinebord een belangrijker bord (boomgaard, vervoer, kantoor, uitbreiding) zou raken
-        for (const o of others) if (o.p >= 55 && overlap(lines[i], o)) return false;
+    const big = others.filter((o) => o.p >= 55);
+    // De machinebordjes doen alles samen. Ze krimpen vloeiend mee als ze anders zouden overlappen
+    // (geen schok bij het zoomen); past het zelfs op 70% niet, dan worden het rondjes.
+    const MIN = 0.7;
+    const fitsAt = (sc) => {
+      const r = lines.map((it) => rect(it, it.w * sc, it.h * sc));
+      for (let i = 0; i < r.length; i++) {
+        for (let j = i + 1; j < r.length; j++) if (collide(r[i], r[j])) return false;
+        for (const o of big) if (collide(r[i], rect(o, o.w, o.h))) return false;
       }
       return true;
     };
-    const mode = compactZoom ? 2 : fits(0) ? 0 : fits(1) ? 1 : 2;
-    this.linesMode = mode;
-    const crowded = mode === 2;
+    let scale = 1;
+    let circles = compactZoom;
+    if (!circles && !fitsAt(1)) {
+      // net als bij het verlaten van de rondjes wat marge, zodat het niet heen en weer springt
+      if (!fitsAt(this.linesCircles ? MIN + 0.06 : MIN)) circles = true;
+      else {
+        let lo = MIN, hi = 1;
+        for (let k = 0; k < 9; k++) { const m = (lo + hi) / 2; if (fitsAt(m)) lo = m; else hi = m; }
+        scale = lo;
+      }
+    }
+    this.linesCircles = circles;
     // eerst de belangrijke bordjes, dan de machines (van boven naar beneden)
-    const order = [...others.filter((it) => it.p >= 55), ...lines, ...others.filter((it) => it.p < 55)];
-    order.sort((a, b) => (b.p >= 55) - (a.p >= 55) || b.p - a.p || a.y - b.y);
+    const order = [...live].sort((a, b) => (b.p >= 55) - (a.p >= 55) || b.p - a.p || a.y - b.y);
     for (const it of order) {
       const isLine = lines.includes(it);
       const canShrink = it.p < 70;
-      let compact = canShrink && (isLine ? crowded : compactZoom);
-      const slim = isLine && mode === 1;
-      let r = compact ? rect(it, small, small) : slim ? rect(it, it.sw, it.sh) : rect(it, it.w, it.h);
+      let compact = canShrink && (isLine ? circles : compactZoom);
+      const ls = isLine && !compact ? scale : 1;
+      let r = compact ? rect(it, small, small) : rect(it, it.w * ls, it.h * ls);
       if (!isLine && hits(r) && canShrink && !compact) { compact = true; r = rect(it, small, small); }
       const hide = hits(r) && it.p < 70;
       it.el.classList.toggle('compact', compact);
-      it.el.classList.toggle('slim', slim);
       it.el.classList.toggle('crowded', hide);
+      it.el._ls = ls;
       if (!hide) placed.push(r);
     }
   }
