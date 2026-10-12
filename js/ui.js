@@ -1184,15 +1184,18 @@ export class UI {
     const big = others.filter((o) => o.p >= 55);
     // De machinebordjes doen alles samen. Ze krimpen vloeiend mee als ze anders zouden overlappen
     // (geen schok bij het zoomen); past het zelfs op 70% niet, dan worden het rondjes.
-    const MIN = 0.7;
+    const MIN = 0.66;
+    // wat lucht tussen de machinebordjes (anders staan ze als een volle trap tegen elkaar)
     const fitsAt = (sc) => {
-      const r = lines.map((it) => rect(it, it.w * sc, it.h * sc));
+      const r = lines.map((it) => rect(it, it.w * sc, it.h * sc, 3));
       for (let i = 0; i < r.length; i++) {
         for (let j = i + 1; j < r.length; j++) if (collide(r[i], r[j])) return false;
         for (const o of big) if (collide(r[i], rect(o, o.w, o.h))) return false;
       }
       return true;
     };
+    // verder uitgezoomd worden ze ook vanzelf kleiner, zodat de wereld niet vol bordjes staat
+    const zoomScale = Math.min(1, (30 / zoom) ** 0.8);
     let scale = 1;
     let circles = compactZoom;
     if (!circles && !fitsAt(1)) {
@@ -1204,6 +1207,7 @@ export class UI {
         scale = lo;
       }
     }
+    if (!circles) scale = Math.min(scale, Math.max(MIN, zoomScale));
     this.linesCircles = circles;
     // eerst de belangrijke bordjes, dan de machines (van boven naar beneden)
     const order = [...live].sort((a, b) => (b.p >= 55) - (a.p >= 55) || b.p - a.p || a.y - b.y);
