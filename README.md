@@ -31,7 +31,7 @@ Je begint met een schuurtje, een paar appelbomen en één vrachtwagen. Een korte
 - **Upgrades** maken een lijn sneller én het product duurder (+4% prijs per level, samengesteld). Daardoor verdien je een upgrade meestal binnen een paar minuten terug.
 - **Mijlpalen** – op level 25, 50, 100, … verdubbelt een station.
 - **Uitbreidingen** – 11 fabrieksformaten, van Schuurtje tot Appelplaneet.
-- **Onderzoek**, **investeerders (prestige)**, **gouden appels**, **doelen** en **offline-inkomen** (50%, max 3 uur).
+- **Onderzoek**, **investeerders (prestige)**, **gouden appels**, **doelen** en **offline-inkomen** (50%, max 4 uur).
 
 Bediening: slepen om te bewegen, scrollen/knijpen om te zoomen, tikken op een station of label om te upgraden. Houd de upgradeknop ingedrukt om snel achter elkaar te kopen.
 

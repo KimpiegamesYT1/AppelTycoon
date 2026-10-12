@@ -110,4 +110,4 @@ export const INVESTOR_POWER = 0.4;
 export const GOLDEN = { minDelay: 45, maxDelay: 110, lifetime: 20, incomeSeconds: 45, minReward: 20 };
 
 // Offline-inkomen.
-export const OFFLINE = { maxHours: 3, rate: 0.5 };
+export const OFFLINE = { maxHours: 4, rate: 0.5 };

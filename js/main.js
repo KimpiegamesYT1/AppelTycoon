@@ -211,7 +211,7 @@ function handleGap(gap) {
   const amount = E.incomePerSecond(state, 0) * secs * OFFLINE.rate;
   if (amount <= 0) return;
   game.pendingOffline += amount;
-  ui.offline(game.pendingOffline, gap);
+  ui.offline(game.pendingOffline, gap, gap > secs ? secs : 0);
 }
 
 const gap0 = (Date.now() - state.lastTick) / 1000;

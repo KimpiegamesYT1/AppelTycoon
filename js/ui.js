@@ -539,9 +539,12 @@ export class UI {
       <div class="btn-row"><button class="btn" data-action="modal-close">Annuleren</button><button class="btn red" data-action="reset">Wissen</button></div>`);
   }
 
-  offline(amount, seconds) {
+  offline(amount, seconds, capped) {
+    const text = capped
+      ? `Je was ${duration(seconds)} weg. Je fabriek heeft maximaal ${Math.round(capped / 3600)} uur doorgewerkt.`
+      : `Terwijl je ${duration(seconds)} weg was, heeft je fabriek doorgewerkt.`;
     this.modal(`<div class="modal-icon">${glyph('fresh')}</div><h2>Welkom terug!</h2>
-      <p>Terwijl je ${duration(seconds)} weg was, heeft je fabriek doorgewerkt.</p>
+      <p>${text}</p>
       <div class="offline-amount">${money(amount)}</div>
       <button class="btn green wide" data-action="offline-claim">Ophalen</button>`, false);
   }
