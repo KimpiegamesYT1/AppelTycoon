@@ -600,7 +600,7 @@ export class UI {
   }
 
   welcome() {
-    this.modal(`<div class="modal-icon">${glyph('fresh')}</div><h2>Appel Tycoon</h2>
+    this.modal(`<img class="modal-logo" src="icon.svg" alt=""><h2>Appel Tycoon</h2>
       <p>Je begint met een klein schuurtje en een paar appelbomen. Maak er appelproducten van, verkoop ze en groei uit tot een enorme fabriek.</p>
       <p>Bovenin helpen we je stap voor stap op weg.</p>
       <button class="btn green wide" data-action="modal-close">Starten!</button>`, true);

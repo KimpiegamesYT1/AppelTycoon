@@ -581,6 +581,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .modal-card p { color: #4b5160; line-height: 1.4; }
 .modal-card .perks { text-align: left; }
 .modal-icon { font-size: 54px; animation: bob 1.4s infinite; }
+.modal-logo { width: 96px; height: 96px; display: block; margin: 0 auto 6px; filter: drop-shadow(0 5px 0 rgba(0, 0, 0, 0.12)); animation: bob 1.4s infinite; }
 .offline-amount { font-size: 34px; font-weight: 700; color: var(--green-d); margin: 8px 0 6px; }
 @keyframes pop { from { transform: scale(0.85); opacity: 0; } }
 
