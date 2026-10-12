@@ -267,7 +267,7 @@ export function stationInfo(kind, i, state = null) {
   const cm = state ? chainCostMult(state) : 1;
   if (kind === 'orchard') return { base: ORCHARD.baseCost * cm, growth: ORCHARD.growth };
   if (kind === 'sales') return { base: SALES.baseCost * cm, growth: SALES.growth };
-  return { base: LINES[i].cost, growth: LINE_GROWTH };
+  return { base: LINES[i].cost, growth: LINES[i].growth || LINE_GROWTH };
 }
 
 export function stationLevel(state, kind, i) {
@@ -434,9 +434,9 @@ export function tick(state, dt, now = 0, events = null) {
         state.goods -= take;
         if (state.goods <= 1e-9) { state.goods = 0; state.goodsValue = 0; }
         if (tr.t >= L) {
-          // nooit leeg vertrekken: wacht tot hij half vol is (of al 8 s met lading staat te wachten)
+          // nooit leeg vertrekken: wacht tot hij half vol is (of al 4 s met lading staat te wachten)
           tr.wait = (tr.wait || 0) + (tr.load > 0 ? tr.t - L : 0);
-          if (tr.load <= 0 || (tr.load < cap * 0.5 && tr.wait < 8)) {
+          if (tr.load <= 0 || (tr.load < cap * 0.5 && tr.wait < 4)) {
             tr.t = L - 1e-6;
           } else {
             // vertrek: de lading is verkocht

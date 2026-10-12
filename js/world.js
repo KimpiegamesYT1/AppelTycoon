@@ -889,7 +889,9 @@ export class World {
     this.scene.add(obj);
     const z = dockZ(k);
     const park = DX1 + 2.45;
-    const path = [[park, z], [ROAD_X - 0.5, z], [ROAD_X - 0.5, 85], [ROAD_X + 3.5, 85], [ROAD_X + 3.5, z], [park + 4.5, z]];
+    // korte rit: de vrachtwagen keert op de weg om, zodat er elke ~10 s een vrachtwagen met geld vertrekt
+    const turn = 34;
+    const path = [[park, z], [ROAD_X - 0.5, z], [ROAD_X - 0.5, turn], [ROAD_X + 3.5, turn], [ROAD_X + 3.5, z], [park + 4.5, z]];
     // de positie komt uit de economie (state.trucks[k].t), zodat verkoop en beeld kloppen
     const mover = new PathMover(obj, path, 12, { reverse: [5] });
     this.trucks.push({ obj, mover });

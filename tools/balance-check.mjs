@@ -15,7 +15,7 @@ const pct = (a, p) => { const b = [...a].sort((x, y) => x - y); return b.length 
 
 // Casual speler: reageert op meldingen (vol magazijn -> vrachtwagens, appeltekort -> boomgaard),
 // koopt nieuwe lijnen/hallen zodra het kan, en anders de goedkoopste upgrade die iets oplevert.
-export function casualSpend(s) {
+export function casualSpend(s, save = true) {
   const bought = [];
   for (let n = 0; n < 400; n++) {
     const p = E.computeProduction(s, 0, true);
@@ -32,7 +32,7 @@ export function casualSpend(s) {
       else {
         // spaart voor een nieuwe lijn/hal als die binnen 3 minuten betaalbaar is
         const inc = E.incomePerSecond(s);
-        if (ev && (ev.cost - s.money) / Math.max(inc, 1e-9) < 180) break;
+        if (save && ev && (ev.cost - s.money) / Math.max(inc, 1e-9) < 180) break;
         const base = inc;
         const useful = opts.filter((o) => !o.event).map((o) => {
           const c = structuredClone(s); o.apply(c);
@@ -53,7 +53,7 @@ export function casualSpend(s) {
 
 // ---------- één simulatie ----------
 
-function simulate({ minutes, beat, player, prestige = false, goals = true, golden = true }) {
+function simulate({ minutes, beat, player, prestige = false, goals = true, golden = true, save = true }) {
   const s = E.newState();
   s.tutorial = 99;
   s.stats.chain = 1;
@@ -96,7 +96,7 @@ function simulate({ minutes, beat, player, prestige = false, goals = true, golde
       if (!useful) nothing += beat;
     }
     const before = E.incomePerSecond(s);
-    const bought = player === 'optimaal' ? spend(s) : casualSpend(s);
+    const bought = player === 'optimaal' ? spend(s) : casualSpend(s, save);
     if (bought.length) {
       const gap = t - lastBuy;
       gaps.push(gap);
@@ -154,6 +154,7 @@ const CASES = {
   lui: () => simulate({ minutes: 180, beat: 300, player: 'casual', golden: false }),
   prestige: () => simulate({ minutes: 480, beat: 4, player: 'optimaal', prestige: true }),
   intro: () => tutorialRun(),
+  begin: () => simulate({ minutes: 10, beat: 2, player: 'casual', golden: false, save: false }),
 };
 
 if (process.argv[1] && !process.argv[1].endsWith('balance-check.mjs')) { /* als module geladen */ } else if (process.argv.includes('--case')) {
@@ -192,8 +193,17 @@ function report(R) {
   if (R.intro) {
     console.log('\n== Intro ==');
     const r = R.intro;
-    check('intro klaar binnen 5 minuten', r.total <= 300, `${fmtT(r.total)}; per stap ${r.steps.map((x) => Math.round(x) + 's').join(', ')}`);
-    check('geen stap in de intro langer dan 75 s wachten', Math.max(...r.steps) <= 75);
+    check('intro klaar binnen 2,5 minuut', r.total <= 150, `${fmtT(r.total)}; per stap ${r.steps.map((x) => Math.round(x) + 's').join(', ')}`);
+    check('geen stap in de intro langer dan 30 s wachten', Math.max(...r.steps) <= 30, `langste ${Math.round(Math.max(...r.steps))} s`);
+  }
+
+  if (R.begin) {
+    console.log('\n== Begin van het spel (koopt zodra het kan, eerste 10 min) ==');
+    const r = R.begin;
+    const g = r.gaps.filter((x, k) => k > 0);
+    console.log(`   aankopen ${r.gaps.length}, wachttijden mediaan ${median(g)} s, p90 ${pct(g, 0.9)} s, langste ${Math.max(...g)} s`);
+    check('begin: meestal binnen 10 s weer iets te kopen (mediaan)', median(g) <= 10, `${median(g)} s`);
+    check('begin: nooit langer dan 45 s wachten op geld', Math.max(...g) <= 45, `langste ${Math.max(...g)} s`);
   }
 
   if (R.optimaal) {
@@ -217,6 +227,8 @@ function report(R) {
     const open = snap.lines.filter((x) => x > 0).slice(0, -1);
     check('oude lijnen blijven meedoen (laagste ≥ 40% van hoogste level na 60 min, nieuwste lijn niet meegeteld)', Math.min(...open) >= 0.4 * Math.max(...open), `levels ${open.join(', ')}`);
     for (const m of [30, 60, 90]) {
+      // na ~55 min is het tijd voor investeerders; 90 min is alleen ter info
+      const info = m > 60;
       const sn = r.snapshots.find((x) => x.t === m * 60);
       if (!sn) continue;
       const sh = sn.shares.filter((x, k) => sn.lines[k] > 0);
@@ -224,7 +236,9 @@ function report(R) {
       const others = sh.slice(0, -1);
       // alle machines verdienen mee: geen enkele boven 60%, en de helft van de machines elk ≥ 5%
       const meaningful = sh.filter((x) => x >= 0.05).length;
-      check(`na ${m} min: geen machine > 60% van het inkomen, ≥ helft van de machines elk ≥ 5%`, Math.max(...sh) <= 0.6 && meaningful >= Math.ceil(sh.length / 2), sh.map((x) => Math.round(x * 100) + '%').join(' '));
+      const txt = sh.map((x) => Math.round(x * 100) + '%').join(' ');
+      if (info) { console.log(`   (info) inkomensverdeling na ${m} min: ${txt}`); continue; }
+      check(`na ${m} min: geen machine > 60% van het inkomen, ≥ helft van de machines elk ≥ 5%`, Math.max(...sh) <= 0.6 && meaningful >= Math.ceil(sh.length / 2), txt);
       void newest; void others;
     }
     check('upgrades worden gekocht (≥ 15 na 2 uur)', r.final.upg >= 15, `${r.final.upg}`);
