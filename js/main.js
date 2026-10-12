@@ -168,13 +168,13 @@ const game = {
     return true;
   },
 
+  // Uitbreiden: eerst een bouwfilmpje op de bouwplaats (±4,5 s), dan een venster met wat het doet.
   buyTier() {
     if (!E.buyTier(state)) { sfx.error(); return false; }
     sfx.unlock();
-    ui.toast(`Uitgebreid naar ${TIERS[state.tier].name}!`, 'expand');
-    setTimeout(() => {
-      world.burst(world.target.clone().setY(3), 120);
-    }, 60);
+    ui.close();
+    const tier = state.tier;
+    world.startBuild(tier, () => ui.tierBuilt(tier));
     return true;
   },
 
@@ -254,6 +254,7 @@ const game = {
   tapStation(st) {
     if (!st) { ui.close(); return; }
     if (st.kind === 'golden') { this.collectGolden(); return; }
+    if (st.kind === 'build') return;
     if (st.kind === 'office') { sfx.click(); ui.open('office'); world.focus(st); return; }
     if (st.kind === 'staff') {
       const r = state.staff.hired[st.id];
@@ -346,6 +347,8 @@ try {
   throw e;
 }
 game.world = world;
+world.onBuildTick = () => sfx.hammer();
+world.onBuildBoom = () => sfx.boom();
 // gouden appel op de band verwerkt: dat product is BELT_GOLD.mult keer zoveel waard
 world.onBeltGold = (i, batch) => {
   const reward = E.lineValue(state, i) * E.priceMult(state) * batch * BELT_GOLD.mult;

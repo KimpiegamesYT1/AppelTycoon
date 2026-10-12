@@ -912,3 +912,13 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .sheet-station .buy { padding: 8px; font-size: 16px; }
   .sheet-station .buy-c { font-size: 20px; }
 }
+
+/* Bouwen: label met voortgang en het venster na afloop */
+.label-build { padding: 4px 10px 4px 6px; font-size: 12px; line-height: 1.2; background: rgba(255, 243, 224, 0.97); border-color: var(--orange); }
+.build-bar { display: block; width: 76px; height: 7px; border-radius: 4px; background: #f1dfc2; overflow: hidden; margin-top: 2px; }
+.build-bar i { display: block; height: 100%; background: var(--orange); border-radius: 4px; }
+.built-art { width: 150px; margin: -4px auto 2px; background: linear-gradient(180deg, #d6efff, #f1f9ff); border-radius: 16px; padding: 8px 6px 0; }
+.built-art svg { display: block; width: 100%; height: auto; }
+.modal-card .th-perks { margin: 10px 0 6px; }
+.built-list { text-align: left; margin: 8px 0 4px; padding-left: 20px; font-size: 14.5px; line-height: 1.45; }
+.built-list li { margin: 3px 0; }

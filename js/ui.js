@@ -824,6 +824,27 @@ export class UI {
       <button class="btn green wide" data-action="modal-close">Verder spelen</button>`, true);
   }
 
+  // Na het bouwfilmpje: wat de nieuwe uitbreiding doet, in gewone woorden.
+  tierBuilt(k) {
+    const t = TIERS[k], prev = TIERS[k - 1];
+    const perks = [];
+    const lines = [];
+    if (t.slots > prev.slots) {
+      const l = LINES[t.slots - 1];
+      perks.push([glyph(l.id), l.name, 'Nieuwe lijn']);
+      lines.push(`Er is ruimte voor een nieuwe productielijn: <b>${l.name}</b>. Tik op het bord in de hal om hem te bouwen.`);
+    }
+    perks.push(['<span class="pk-coin">€</span>', mul(t.mult), 'Inkomen']);
+    lines.push(`Alles wat je verkoopt is nu <b>${mul(t.mult)}</b> zoveel waard.`);
+    if (t.orchard > 1) { perks.push([glyph('orchard'), mul(t.orchard), 'Appels']); lines.push(`Je boomgaard plukt <b>${mul(t.orchard)}</b> zoveel appels.`); }
+    if (t.plots > prev.plots) { perks.push([glyph('orchard'), '+1', 'Veld']); lines.push('Je krijgt een extra veld voor appelbomen.'); }
+    if ((t.chain || 1) > 1) lines.push(`Let op: upgrades van boomgaard en vervoer kosten nu <b>${mul(t.chain)}</b> zo veel.`);
+    this.modal(`<div class="built-art">${this.tierArt(k)}</div><h2>${t.name} gebouwd!</h2>
+      <div class="th-perks n${perks.length}">${perks.map(([ic, v, x]) => `<div class="perk"><span class="pk-ic">${ic}</span><b>${v}</b><small>${x}</small></div>`).join('')}</div>
+      <ul class="built-list">${lines.map((x) => `<li>${x}</li>`).join('')}</ul>
+      <button class="btn green wide" data-action="modal-close">Top!</button>`, true);
+  }
+
   // Eenmalige uitleg zodra het kantoor er is.
   officeIntro() {
     const s = this.state;
@@ -1160,7 +1181,7 @@ export class UI {
       const k = it.st.kind;
       if (it.el.dataset.st === tut) return 100;
       if (k === 'staff') return it.el.classList.contains('staff-ready') ? 80 : -1;
-      return { golden: -1, tier: 70, unlock: 65, orchard: 60, sales: 60, office: 55, dock: 40 }[k] ?? (it.el.classList.contains('can') ? 52 : 50);
+      return { golden: -1, build: 95, tier: 70, unlock: 65, orchard: 60, sales: 60, office: 55, dock: 40 }[k] ?? (it.el.classList.contains('can') ? 52 : 50);
     };
     const compactZoom = zoom > 46;
     // eerst alles op ware grootte meten (in één keer, dan rekent de browser maar één keer)
@@ -1273,6 +1294,10 @@ export class UI {
       html = `<span class="lb-icon">${glyph('sales')}</span><span class="lb-txt">Nieuwe laadplek<br><b>level ${st.level}</b></span>`;
     } else if (st.kind === 'golden') {
       html = `<i class="gold-arrow"></i><span class="lb-icon">${glyph('gold')}</span>`;
+    } else if (st.kind === 'build') {
+      const b = this.game.world.building;
+      const pct = b ? Math.round((b.progress || 0) * 100) : 100;
+      html = `<span class="lb-icon tier-ic">${icon('expand')}</span><span class="lb-txt">Bouwen…<br><span class="build-bar"><i style="width:${pct}%"></i></span></span>`;
     } else if (st.kind === 'office') {
       const n = this.officeAlerts();
       html = `<span class="lb-icon office-ic">${icon('briefcase')}</span><span class="lb-txt">Kantoor</span>${n ? `<span class="up">${n}</span>` : ''}`;

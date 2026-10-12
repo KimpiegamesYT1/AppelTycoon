@@ -477,6 +477,195 @@ export class World {
     }
   }
 
+  // ---------- Bouweffect bij een nieuwe uitbreiding (±4,5 seconden) ----------
+  // Camera naar de bouwplaats, steigers en een draaiende kraan, bouwvakkers, een gebouw dat
+  // verdieping voor verdieping omhoog komt, stofwolken; dan een knal en staat het echte gebouw er.
+  startBuild(tier, onDone) {
+    const site = this.sitePosition(tier);
+    if (!site) { onDone(); return; }
+    if (this.building) this.endBuild(true);
+    const H = tier <= 6 ? 4.2 : 9;
+    const g = new THREE.Group();
+    g.position.set(site.x, 0, site.z);
+    // het gebouw komt verdieping voor verdieping omhoog (beton met een rij ramen)
+    const FLOORS = 6;
+    const floors = [];
+    for (let k = 0; k < FLOORS; k++) {
+      const fb = new M.Builder();
+      const fh = H / FLOORS;
+      const fw = site.w * 0.84, fd = site.d * 0.84;
+      fb.box(fw, fh * 0.92, fd, k % 2 ? 0xe9e4da : 0xf4f1ea, 0, 0, 0);
+      fb.box(fw + 0.04, fh * 0.4, fd + 0.04, M.C.glass, 0, fh * 0.3, 0);
+      fb.box(fw + 0.2, fh * 0.08, fd + 0.2, 0xb9c2cc, 0, fh * 0.92, 0);
+      const m = fb.mesh();
+      m.position.y = k * fh;
+      m.visible = false;
+      g.add(m);
+      floors.push(m);
+    }
+    // steigers rondom
+    const sc = new M.Builder();
+    const poles = [];
+    for (let x = -site.w / 2; x <= site.w / 2 + 0.01; x += site.w / Math.max(2, Math.round(site.w / 3))) poles.push([x, -site.d / 2], [x, site.d / 2]);
+    for (let z = -site.d / 2; z <= site.d / 2 + 0.01; z += site.d / Math.max(2, Math.round(site.d / 3))) poles.push([-site.w / 2, z], [site.w / 2, z]);
+    for (const [x, z] of poles) sc.box(0.14, H + 0.6, 0.14, 0x9aa3ad, x, 0, z);
+    for (let y = 1.4; y < H + 0.4; y += 1.4) {
+      sc.box(site.w + 0.2, 0.1, 0.5, M.C.wood, 0, y, -site.d / 2);
+      sc.box(site.w + 0.2, 0.1, 0.5, M.C.wood, 0, y, site.d / 2);
+      sc.box(0.5, 0.1, site.d + 0.2, M.C.wood, -site.w / 2, y, 0);
+      sc.box(0.5, 0.1, site.d + 0.2, M.C.wood, site.w / 2, y, 0);
+    }
+    const scaffold = sc.mesh();
+    scaffold.scale.y = 0.001;
+    g.add(scaffold);
+    // bouwkraan op een hoek, met draaiende arm en een bungelende krat
+    const crane = new THREE.Group();
+    const cb = new M.Builder();
+    const ch = H + 5;
+    cb.box(1.6, 0.4, 1.6, M.C.dark, 0, 0, 0);
+    for (let y = 0.4; y < ch; y += 0.9) {
+      cb.box(0.7, 0.9, 0.12, M.C.yellow, 0, y, 0.3);
+      cb.box(0.7, 0.9, 0.12, M.C.yellow, 0, y, -0.3);
+      cb.box(0.12, 0.9, 0.7, M.C.yellow, 0.3, y, 0);
+      cb.box(0.12, 0.9, 0.7, M.C.yellow, -0.3, y, 0);
+    }
+    crane.add(cb.mesh());
+    const jib = new THREE.Group();
+    jib.position.y = ch;
+    const jb = new M.Builder();
+    const reach = Math.min(Math.max(site.w, site.d) * 0.7, 14);
+    jb.box(reach + 3, 0.45, 0.5, M.C.yellow, reach / 2 - 1.5, 0, 0);
+    jb.box(1.4, 0.9, 0.9, M.C.dark, -2.4, -0.2, 0);
+    jb.box(1.0, 1.0, 1.0, 0x8fd3ff, 0.6, -1.0, 0);
+    jib.add(jb.mesh());
+    const hook = new THREE.Group();
+    hook.position.set(reach * 0.75, 0, 0);
+    const hb = new M.Builder();
+    hb.box(0.05, 3.2, 0.05, 0x2b2f3a, 0, -3.2, 0);
+    hb.box(1.0, 0.7, 1.0, M.C.wood, 0, -3.9, 0);
+    hook.add(hb.mesh());
+    jib.add(hook);
+    crane.add(jib);
+    crane.position.set(-site.w / 2 - 1.6, 0, -site.d / 2 - 1.6);
+    crane.scale.setScalar(0.001);
+    g.add(crane);
+    // bouwvakkers
+    const workers = [];
+    for (let k = 0; k < 4; k++) {
+      const w = M.person(M.C.orange, M.C.blue, { helmet: true });
+      w.position.set((k % 2 ? 1 : -1) * site.w * 0.3, 0, (k < 2 ? 1 : -1) * site.d * 0.55);
+      g.add(w);
+      workers.push(w);
+    }
+    // stofwolken (eigen materiaal per wolk, zodat ze los kunnen vervagen)
+    const puffs = [];
+    for (let k = 0; k < 18; k++) {
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0xfff6e8, transparent: true, opacity: 0, depthWrite: false }));
+      m.visible = false;
+      g.add(m);
+      puffs.push({ m, life: 0 });
+    }
+    this.scene.add(g);
+    this.building = { tier, site, height: H, t: 0, dur: 4.6, group: g, floors, scaffold, crane, jib, hook, workers, puffs, onDone, released: false, nextPuff: 0, nextHammer: 0, nextSpark: 0 };
+    // camera erheen en ver genoeg uitzoomen om alles te zien
+    this.goal = new THREE.Vector3(site.x, 0, site.z);
+    this.goalFrom = this.target.clone();
+    this.goalT = 0;
+    this.goalDur = 0.9;
+    const maxZ = tier >= 7 ? 110 : 70;
+    this.zoomGoal = Math.min(maxZ, Math.max(26, Math.max(site.w, site.d) * 1.5 + H * 1.2));
+  }
+
+  updateBuild(dt) {
+    const b = this.building;
+    b.t += dt;
+    const t = b.t;
+    const site = b.site;
+    const ease = (x) => 1 - (1 - Math.min(1, Math.max(0, x))) ** 3;
+    // 0-0,6 s: steigers en kraan komen omhoog
+    const up = ease(t / 0.6);
+    b.scaffold.scale.y = Math.max(0.001, ease((t - 0.2) / 0.7));
+    b.crane.scale.setScalar(Math.max(0.001, up));
+    // 0,6-3,8 s: verdieping voor verdieping omhoog (met korte sprongetjes)
+    const prog = Math.min(1, Math.max(0, (t - 0.6) / 3.2));
+    const floors = 6;
+    const f = Math.floor(prog * floors);
+    const within = prog * floors - f;
+    b.floors.forEach((m, k) => {
+      const on = k < f || (k === f && prog > 0);
+      if (on && !m.visible) { m.visible = true; m.scale.set(1, 0.001, 1); }
+      // elke nieuwe verdieping schiet kort omhoog en veert terug
+      if (m.visible) {
+        const a = k < f ? 1 : ease(within / 0.35);
+        m.scale.set(1, Math.max(0.001, a), 1);
+      }
+    });
+    b.top = ((f + (f < floors ? ease(within / 0.35) : 0)) / floors) * b.height;
+    b.progress = prog;
+    b.jib.rotation.y = Math.sin(t * 1.3) * 1.2 + t * 0.4;
+    b.hook.rotation.z = Math.sin(t * 3) * 0.12;
+    b.workers.forEach((w, k) => {
+      w.userData.body.position.y = Math.abs(Math.sin(t * 9 + k * 1.7)) * 0.25;
+      w.rotation.y = Math.sin(t * 2 + k) * 1.5;
+    });
+    // stofwolken en vonkjes
+    if (t < 4.0 && t >= b.nextPuff) {
+      b.nextPuff = t + 0.12;
+      const p = b.puffs.find((x) => x.life <= 0);
+      if (p) {
+        p.life = 1;
+        p.m.position.set((Math.random() - 0.5) * site.w, 0.3, (Math.random() - 0.5) * site.d);
+        p.vy = 0.8 + Math.random();
+        p.size = 0.6 + Math.random() * 0.8;
+      }
+    }
+    if (t > 0.8 && t < 3.8 && t >= b.nextSpark) {
+      b.nextSpark = t + 0.35;
+      this.burst(new THREE.Vector3(site.x + (Math.random() - 0.5) * site.w * 0.6, (b.top || 0) + 0.3, site.z + (Math.random() - 0.5) * site.d * 0.6), 6);
+    }
+    if (t > 0.6 && t < 3.8 && t >= b.nextHammer) {
+      b.nextHammer = t + 0.32;
+      if (this.onBuildTick) this.onBuildTick();
+    }
+    for (const p of b.puffs) {
+      if (p.life <= 0) { p.m.visible = false; continue; }
+      p.life -= dt / 1.1;
+      p.m.visible = true;
+      p.m.position.y += p.vy * dt;
+      p.m.scale.setScalar(p.size * (1.6 - p.life * 0.8));
+      p.m.material.opacity = Math.max(0, p.life) * 0.45;
+    }
+    // 4,0 s: knal, het echte gebouw verschijnt
+    if (t >= 4.0 && !b.released) {
+      b.released = true;
+      b.floors.forEach((m) => { m.visible = false; });
+      b.scaffold.visible = false;
+      b.crane.visible = false;
+      b.workers.forEach((w) => { w.visible = false; });
+      // grote stofring
+      b.puffs.forEach((p, k) => {
+        const a = (k / b.puffs.length) * Math.PI * 2;
+        p.life = 1;
+        p.m.position.set(Math.cos(a) * site.w * 0.5, 0.4, Math.sin(a) * site.d * 0.5);
+        p.vy = 0.6;
+        p.size = 1.4 + Math.random() * 0.8;
+      });
+      this.burst(new THREE.Vector3(site.x, b.height * 0.6, site.z), 120);
+      if (this.onBuildBoom) this.onBuildBoom();
+    }
+    if (t >= b.dur) this.endBuild();
+  }
+
+  endBuild(silent = false) {
+    const b = this.building;
+    if (!b) return;
+    this.building = null;
+    this.scene.remove(b.group);
+    disposeTree(b.group);
+    b.puffs.forEach((p) => { p.m.geometry.dispose(); p.m.material.dispose(); });
+    if (!silent && b.onDone) b.onDone();
+  }
+
   buildPools() {
     this.itemGroup = new THREE.Group();
     this.scene.add(this.itemGroup);
@@ -1089,7 +1278,9 @@ export class World {
   // ---------- Synchroniseren met spelstatus ----------
 
   sync(state, prod) {
-    if (state.tier !== this.builtTier || this._prestiges !== state.prestiges) {
+    // tijdens het bouweffect blijft de oude fabriek staan tot het nieuwe gebouw 'af' is
+    const holdBuild = this.building && !this.building.released;
+    if ((state.tier !== this.builtTier && !holdBuild) || this._prestiges !== state.prestiges) {
       this._prestiges = state.prestiges;
       this.rebuildLayout(state);
     }
@@ -1410,7 +1601,7 @@ export class World {
       c.setPointerCapture(e.pointerId);
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       this.dragging = true;
-      if (pointers.size === 1) { downPos = { x: e.clientX, y: e.clientY }; moved = 0; this.velocity.set(0, 0); this.goal = null; }
+      if (pointers.size === 1) { downPos = { x: e.clientX, y: e.clientY }; moved = 0; this.velocity.set(0, 0); this.goal = null; this.zoomGoal = null; }
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
         pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
@@ -1502,7 +1693,10 @@ export class World {
       if (state.lines[i] > 0) out.push({ key: 'line' + i, st: { kind: 'line', i }, pos: new THREE.Vector3(10, 4.2, lineZ(i)) });
       else if (i < TIERS[state.tier].slots && (i === 0 || state.lines[i - 1] > 0)) out.push({ key: 'unlock' + i, st: { kind: 'unlock', i }, pos: new THREE.Vector3(10, 1.4, lineZ(i)) });
     });
-    if (this.siteAnchor && (state.lines[1] > 0 || state.tier > 0)) out.push({ key: 'tier', st: { kind: 'tier' }, pos: this.siteAnchor });
+    if (this.building) {
+      const b = this.building;
+      out.push({ key: 'build', st: { kind: 'build' }, pos: new THREE.Vector3(b.site.x, b.height + 2.5, b.site.z) });
+    } else if (this.siteAnchor && (state.lines[1] > 0 || state.tier > 0)) out.push({ key: 'tier', st: { kind: 'tier' }, pos: this.siteAnchor });
     if (this.golden.visible) out.push({ key: 'golden', st: { kind: 'golden' }, pos: this.golden.position.clone().setY(5.2) });
     if (this.officeOn) out.push({ key: 'office', st: { kind: 'office' }, pos: OFFICE.clone().setY(7.4) });
     for (const p of this.staff.values()) out.push({ key: 'staff-' + p.id, st: { kind: 'staff', id: p.id }, pos: p.obj.position.clone().setY(p.obj.position.y + (p.status === 'ready' ? 2.1 : 1.75)) });
@@ -1514,6 +1708,12 @@ export class World {
   update(dt) {
     this.time += dt;
     const t = this.time;
+
+    if (this.building) this.updateBuild(dt);
+    if (this.zoomGoal) {
+      this.viewSize += (this.zoomGoal - this.viewSize) * Math.min(1, dt * 2.5);
+      if (Math.abs(this.zoomGoal - this.viewSize) < 0.2) this.zoomGoal = null;
+    }
 
     // camera traagheid / focus
     if (this.goal) {

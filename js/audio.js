@@ -68,6 +68,9 @@ export const sfx = {
   coin() { if (enabled) { tone(988, 0, 0.08, 'sine', 0.06); tone(1319, 0.06, 0.18, 'sine', 0.06); } },
   sale() { if (enabled) tone(1175, 0, 0.12, 'sine', 0.035); },
   error() { if (enabled) tone(200, 0, 0.15, 'triangle', 0.07, 0.7); },
+  // bouwen: een korte, doffe hamerklap (licht wisselende toonhoogte)
+  hammer() { if (enabled) { const f = 140 + Math.random() * 40; tone(f, 0, 0.07, 'square', 0.05, 0.6); tone(f * 3.1, 0, 0.03, 'triangle', 0.04); } },
+  boom() { if (enabled) { tone(90, 0, 0.5, 'sawtooth', 0.09, 0.4); [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.12 + i * 0.07, 0.25, 'triangle', 0.08)); } },
   prestige() { if (enabled) [262, 330, 392, 523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.09, 0.3, 'triangle', 0.08)); },
 };
 
