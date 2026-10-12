@@ -400,8 +400,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 .list-row.locked { background: #fff7ec; }
 .list-row.dim { opacity: 0.75; }
-.list-main { flex: 1; display: flex; align-items: center; gap: 10px; text-align: left; min-width: 0; }
-.li-icon { font-size: 28px; width: 40px; text-align: center; }
 .li-text { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .li-text b { font-size: 16px; }
 .li-text small { color: var(--ink-soft); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -494,9 +492,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .lb-bar.star { width: 30px; }
 .lb-bar.star i { background: var(--blue); }
 .lb-full { color: var(--red); font-size: 11px; }
-.mini-bar { width: 42px; height: 7px; border-radius: 4px; background: #e6dccb; overflow: hidden; display: inline-block; vertical-align: middle; }
-.mini-bar i { display: block; height: 100%; background: var(--green); }
-.mini-bar.full i { background: var(--red); }
 .bad-text { color: var(--red); font-weight: 700; }
 .label-unlock, .label-tier { padding: 4px 10px 4px 6px; font-size: 12px; line-height: 1.15; background: rgba(255, 243, 224, 0.97); }
 .label-unlock b, .label-tier b { font-size: 14px; color: var(--orange-d); }
@@ -641,9 +636,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .chart svg { width: 100%; height: 130px; display: block; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12.5px; color: var(--ink-soft); margin-top: 4px; }
 .legend i { display: inline-block; width: 12px; height: 4px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
-.weak-box { display: flex; align-items: center; gap: 10px; background: #fff4e8; border: 2px solid #ffd29a; border-radius: 14px; padding: 8px 10px; margin-top: 8px; font-size: 14px; }
-.weak-box .gl { font-size: 26px; }
-.weak-box div { flex: 1; }
 
 
 /* mobiel: het doel is een rond knopje met voortgangsring; tikken klapt het open */

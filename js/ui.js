@@ -156,7 +156,6 @@ export class UI {
 
   open(id, data) {
     const builders = {
-      stations: () => this.stationsPanel(),
       research: () => this.researchPanel(),
       expand: () => this.expandPanel(),
       investors: () => this.investorsPanel(),
@@ -281,7 +280,7 @@ export class UI {
         else if (st.kind === 'sales') after.sales += q.count;
         else after.lines[st.i] += q.count;
         const ssNext = E.computeProduction(after, 0, true);
-        const goTo = (kind, label) => `<button class="btn small" data-action="station" data-st='{"kind":"${kind}"}'>${label}</button>`;
+        const goTo = (st, label) => `<button class="btn small" data-action="station" data-st='${JSON.stringify(typeof st === 'string' ? { kind: st } : st)}'>${label}</button>`;
         // korte, strakke melding met een knop naar de oplossing
         const warn = (text, btn = '', bad = false) => `<div class="alert-pill ${bad ? 'bad' : ''}">${icon('alert')}<b>${text}</b>${btn}</div>`;
         const chip = (label, value, up = '', cls = '') => `<div class="chip-stat ${cls}"><small>${label}</small><b>${value}</b>${up ? `<em>${up}</em>` : ''}</div>`;
@@ -295,8 +294,7 @@ export class UI {
           chips.push(chip('Machines willen', rate(demand) + '/s', '', demand > E.orchardRate(s) * 1.02 ? 'bad' : ''));
           // als percentage: grote getallen (45,6K/50,0K) passen niet in het vakje
           chips.push(chip('Appelbak', `${Math.min(100, Math.round((s.apples / prod.binCap) * 100))}%`, prod.binFull ? 'vol' : '', prod.binFull ? 'bad' : ''));
-          if (prod.binFull && demand <= 0) extra = warn('Appelbak vol!', goTo('stations', 'Machines'));
-          else if (prod.binFull) extra = warn('Appelbak vol!', goTo('stations', 'Machines'));
+          if (prod.binFull) extra = warn('Appelbak vol!', goTo(this.cheapestLine(), 'Machines'));
           else if (demand > E.orchardRate(s) * 1.02) extra = warn('Niet genoeg appels!');
         } else if (st.kind === 'sales') {
           title = SALES.name;
@@ -340,60 +338,16 @@ export class UI {
     };
   }
 
-  stationsPanel() {
-    return {
-      icon: icon('factory'),
-      render: () => {
-        const s = this.state;
-        const prod = this.game.prod;
-        const row = (st, icon, name, sub) => {
-          const q = E.upgradeQuote(s, st.kind, st.i || 0, this.buyAmount);
-          const can = q.cost <= s.money;
-          return `<div class="list-row">
-            <button class="list-main" data-action="station" data-st='${JSON.stringify(st)}'>
-              <span class="li-icon">${icon}</span>
-              <span class="li-text"><b>${name}</b><small>${sub}</small></span>
-            </button>
-            <button class="btn green small ${can ? '' : 'disabled'}" data-action="upgrade" data-hold data-kind="${st.kind}" data-i="${st.i || 0}">+${q.count}<br><small>${money(q.cost)}</small></button>
-          </div>`;
-        };
-        const ssl = E.computeProduction(s, 0, true);
-        let html = this.weakBox() + this.amountToggle();
-        const fill = (x) => `<span class="mini-bar ${x > 0.97 ? 'full' : ''}"><i style="width:${Math.round(Math.min(1, x) * 100)}%"></i></span>`;
-        html += row({ kind: 'orchard' }, glyph('orchard'), `Boomgaard <span class="lv">Lv ${s.orchard}</span>`, `${fmt(prod.supply)} appels/s · bak ${fill(s.apples / prod.binCap)}${prod.binFull ? ' <span class="warn-text">vol</span>' : ''}`);
-        LINES.forEach((l, i) => {
-          if (s.lines[i] > 0) {
-            const lp = prod.lines[i];
-            const warn = lp.status === 'full' ? ' · <span class="bad-text">vastgelopen</span>' : lp.status === 'apples' ? ' · <span class="warn-text">te weinig appels</span>' : '';
-            html += row({ kind: 'line', i }, glyph(l.id), `${l.name} <span class="lv">Lv ${s.lines[i]}</span>`, `${money(ssl.lines[i].price)} per stuk · ${money(ssl.lines[i].income * 60)}/min${warn}`);
-          } else if (E.lineUnlockable(s, i)) {
-            const can = s.money >= l.unlock;
-            html += `<div class="list-row locked"><span class="li-icon">${glyph(l.id)}</span><span class="li-text"><b>${l.name}</b><small>Nieuwe productielijn</small></span>
-              <button class="btn orange small ${can ? '' : 'disabled'}" data-action="unlock" data-i="${i}">Open<br><small>${money(l.unlock)}</small></button></div>`;
-          } else if (s.lines[i] === 0 && (i === 0 || s.lines[i - 1] > 0)) {
-            const need = TIERS.findIndex((t) => t.slots > i);
-            html += `<div class="list-row locked dim"><span class="li-icon muted">${icon('lock')}</span><span class="li-text"><b>${l.name}</b><small>Vereist uitbreiding: ${TIERS[need].name}</small></span>
-              <button class="btn small" data-action="open" data-v="expand">Bekijk</button></div>`;
-          }
-        });
-        const use = ssl.transport > 0 ? Math.round(Math.min(1, ssl.potential / ssl.transport) * 100) : 0;
-        html += row({ kind: 'sales' }, glyph('sales'), `Vervoer <span class="lv">Lv ${s.sales}</span>`, `${rate(prod.transport)} kratten/s · bezet ${use}% · magazijn ${fill(s.goods / prod.storeCap)}${prod.storeFull ? ' <span class="bad-text">vol</span>' : ''}`);
-        return { title: 'Je fabriek', sub: `${TIERS[s.tier].name} · ≈ ${money(E.incomePerSecond(s) * 60)}/min`, html };
-      },
-    };
-  }
-
-  weakBox() {
+  // De machine die nu het goedkoopst een level omhoog kan (voor 'Machines'-knoppen).
+  cheapestLine() {
     const s = this.state;
-    if (!s.lines.some((x) => x > 0)) return '';
-    const c = E.chainBalance(s);
-    const info = {
-      pick: ['orchard', 'Niet genoeg appels', { kind: 'orchard' }],
-      machines: ['fresh', 'Machines te traag', null],
-      transport: ['sales', 'Te weinig vervoer', { kind: 'sales' }],
-    }[c.weakest];
-    const btn = info[2] ? `<button class="btn small" data-action="station" data-st='${JSON.stringify(info[2])}'>Bekijk</button>` : '';
-    return `<div class="weak-box">${glyph(info[0])}<div><b>Zwakste schakel</b><br><small>${info[1]}</small></div>${btn}</div>`;
+    let best = 0, cost = Infinity;
+    LINES.forEach((l, i) => {
+      if (s.lines[i] <= 0) return;
+      const c = E.upgradeQuote(s, 'line', i, 1).cost;
+      if (c < cost) { cost = c; best = i; }
+    });
+    return { kind: 'line', i: best };
   }
 
   chainPanel() {
@@ -412,7 +366,7 @@ export class UI {
         const bars = series.map(([k, label, color, gl, st]) => {
           const weak = k === c.weakest;
           const pct = Math.max(2, Math.round((c[k] / max) * 100));
-          const open = st ? ` data-action="station" data-st='${JSON.stringify(st)}'` : ' data-action="open" data-v="stations"';
+          const open = ` data-action="station" data-st='${JSON.stringify(st || this.cheapestLine())}'`;
           return `<button class="cb-row ${weak ? 'cb-weak' : ''}"${open}>${glyph(gl)}<span>
             <span class="cb-top"><span>${label}${weak ? '<span class="tag-weak">zwakste schakel</span>' : ''}</span><b>${fmt(c[k])} appels/s</b></span>
             <span class="cb-track"><i style="width:${pct}%;background:${color}"></i></span></span></button>`;
@@ -729,7 +683,7 @@ export class UI {
       if (st.kind === 'unlock' || st.kind === 'tier') this.open('expand'); else this.openStation(st);
     } else if (g.type === 'research') this.open('research');
     else if (g.type === 'prestige') this.open('investors');
-    else if (g.type === 'income') this.open('stations');
+    else if (g.type === 'income') this.openStation(this.cheapestLine());
   }
 
   // ---------- Per frame ----------
@@ -854,7 +808,6 @@ export class UI {
     const s = this.state;
     const show = (sel, on) => document.querySelector(sel).classList.toggle('hidden', !on);
     const tut = tutorialDone(s);
-    show('[data-open="stations"]', s.lines[0] > 0);
     show('[data-open="research"]', tut || Object.keys(s.research).length > 0);
     show('[data-open="expand"]', s.lines[1] > 0 || s.tier > 0);
     show('#btn-investors', s.investors > 0 || s.prestiges > 0 || E.pendingInvestors(s) > 0);
