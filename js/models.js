@@ -475,23 +475,47 @@ export function appleBin() {
 }
 
 // ---------- Machines per productielijn ----------
-// Elke machine staat lokaal rond x=0 over de band (band loopt langs x).
-// Geeft { group, anim(time, activity) } terug.
+// Elke machine staat lokaal rond x=0 over de band (band loopt langs x, van -x naar +x).
+// Geeft { group, anim(t, act, info) } terug. info.prog loopt per product van 0 naar 1, zodat
+// stempels, deuren en armen precies bewegen als er een product uitkomt. info.status is
+// 'run' | 'wait' | 'jam' voor de statuslamp, info.pop (1 -> 0) laat de machine even veren.
+
+const LAMP_COLORS = { run: 0x4cff7a, wait: 0xffb020, jam: 0xff3b30 };
+
+// handige vormen voor bewegende delen (elk een eigen mesh)
+function partMesh(fn, x = 0, y = 0, z = 0, shadow = true) {
+  const b = new Builder();
+  fn(b);
+  const m = b.mesh({ shadow });
+  m.position.set(x, y, z);
+  return m;
+}
+
+// 0 -> 1 -> 0 rond het einde van een productcyclus (stempelen, uitschuiven)
+const stroke = (p, from = 0.72, to = 0.98) => (p < from ? 0 : p > to ? 0 : Math.sin(((p - from) / (to - from)) * Math.PI));
 
 export function machine(id, color) {
   const g = new THREE.Group();
   const b = new Builder();
   let anim = () => {};
-  const moving = new THREE.Group();
-  g.add(moving);
+  const extra = [];   // per machine extra animaties
 
+  // statuslamp op een paaltje
+  const lampMat = new THREE.MeshBasicMaterial({ color: LAMP_COLORS.wait });
+  const addLamp = (x, z, h = 2.4) => {
+    b.cyl(0.05, h, C.metalDark, x, 0, z, { seg: 6 });
+    b.cyl(0.13, 0.08, C.dark, x, h, z, { seg: 8 });
+    const lamp = new THREE.Mesh(unitCyl(8), lampMat);
+    lamp.scale.set(0.11, 0.2, 0.11);
+    lamp.position.set(x, h + 0.08, z);
+    g.add(lamp);
+  };
+
+  // stoom/rook: bolletjes die opstijgen en vervagen
   const steamParts = [];
-  const steam = (x, y, z, n = 3) => {
+  const steam = (x, y, z, n = 3, size = 0.22, col = 0xffffff) => {
     for (let i = 0; i < n; i++) {
-      const sb = new Builder();
-      sb.ico(0.22, 0xffffff, 0, 0, 0);
-      const m = sb.mesh({ shadow: false });
-      m.position.set(x, y, z);
+      const m = partMesh((sb) => sb.ico(size, col, 0, 0, 0), x, y, z, false);
       m.userData = { x, y, z, phase: i / n };
       g.add(m);
       steamParts.push(m);
@@ -506,161 +530,462 @@ export function machine(id, color) {
     }
   };
 
+  // bubbels in een ketel: groeien en knappen op het oppervlak
+  const bubbles = (x, y, z, r, col, n = 4) => {
+    const list = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + 0.4;
+      const m = partMesh((bb) => bb.sphere(0.12, col, 0, 0, 0, { w: 6, h: 4 }), x + Math.cos(a) * r * 0.55, y, z + Math.sin(a) * r * 0.55, false);
+      m.userData.phase = i / n;
+      g.add(m);
+      list.push(m);
+    }
+    extra.push((t, act) => {
+      for (const m of list) {
+        const p = (t * (0.6 + act * 1.5) + m.userData.phase) % 1;
+        m.scale.setScalar(act > 0.01 ? Math.sin(p * Math.PI) * 1.1 : 0.0001);
+      }
+    });
+  };
+
+  // draaiend tandwiel aan de zijkant (laat zien dat de machine draait)
+  const gear = (x, y, z, r = 0.32, col = C.metalDark, speed = 2) => {
+    const m = partMesh((gb) => {
+      gb.cyl(r, 0.1, col, 0, -0.05, 0, { seg: 10 });
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        gb.box(0.1, 0.1, 0.14, col, Math.cos(a) * r, -0.05, Math.sin(a) * r, -a);
+      }
+      gb.cyl(0.08, 0.14, C.yellow, 0, -0.07, 0, { seg: 6 });
+    }, x, y, z);
+    m.rotation.x = Math.PI / 2;
+    g.add(m);
+    extra.push((t, act) => { if (act > 0.01) m.rotation.y += 0.016 * speed * (0.5 + act * 2); });
+    return m;
+  };
+
+  // klein bedieningspaneel met scherm
+  const panel = (x, z, ry = 0) => {
+    b.box(0.12, 0.9, 0.12, C.metalDark, x, 0, z);
+    b.box(0.6, 0.45, 0.12, C.dark, x, 0.9, z, ry, -0.4);
+    b.box(0.46, 0.3, 0.02, 0x3fb6ff, x, 0.97, z + 0.07 * Math.cos(ry), ry, -0.4);
+  };
+
+  let body = null;
+  const finish = (fn) => {
+    anim = (t, act, info = {}) => {
+      const st = info.status || (act > 0.01 ? 'run' : 'wait');
+      // lamp: groen als hij draait, oranje als hij wacht, rood knipperend als hij vastloopt
+      const blink = st === 'jam' ? (Math.sin(t * 9) > 0 ? 1 : 0.25) : 1;
+      lampMat.color.setHex(LAMP_COLORS[st]).multiplyScalar(blink);
+      // even veren als er een product uitkomt
+      if (body) {
+        const pop = info.pop || 0;
+        body.scale.set(1 + pop * 0.035, 1 - pop * 0.05, 1 + pop * 0.035);
+      }
+      for (const e of extra) e(t, act, info);
+      fn(t, act, info.prog || 0);
+    };
+  };
+
   switch (id) {
     case 'fresh': {
-      b.box(3.2, 0.9, 1.6, C.metal, 0, 0, 0);
-      for (let x = -1.3; x <= 1.31; x += 0.32) b.cyl(0.07, 1.3, C.metalDark, x, 0.95, -0.65, { seg: 6, rx: Math.PI / 2 });
-      b.box(0.2, 2.2, 0.2, C.dark, -0.4, 0, 1.0);
-      b.box(0.2, 2.2, 0.2, C.dark, -0.4, 0, -1.0);
-      b.box(0.4, 0.35, 2.2, C.yellow, -0.4, 2.0, 0);
-      g.add(crateStack(3, 4).translateX(0.9).translateZ(1.3));
-      const lightB = new Builder();
-      lightB.box(0.25, 0.15, 0.25, 0x4cff7a, 0, 0, 0);
-      const light = lightB.mesh({ shadow: false });
-      light.position.set(-0.4, 2.35, 0);
-      g.add(light);
-      anim = (t, act) => { light.visible = act > 0.01 && Math.sin(t * 8) > 0; };
+      // sorteertafel met draaiende rollen, een portaal met grijparm en een kratje voor de appels
+      b.box(3.2, 0.75, 1.7, C.metal, 0, 0, 0);
+      b.box(3.3, 0.12, 1.8, C.metalDark, 0, 0.75, 0);
+      for (const x of [-1.45, 1.45]) for (const z of [-0.75, 0.75]) b.box(0.15, 0.2, 0.15, C.dark, x, 0, z);
+      b.box(3.2, 0.25, 0.08, C.yellow, 0, 0.87, 0.86);
+      b.box(3.2, 0.25, 0.08, C.yellow, 0, 0.87, -0.86);
+      const rollers = [];
+      for (let k = 0; k < 9; k++) {
+        const r = partMesh((rb) => {
+          rb.cyl(0.08, 0.7, C.metalDark, 0, -0.35, 0, { seg: 6 });
+          rb.box(0.04, 0.7, 0.17, C.metal, 0, -0.35, 0);
+        }, -1.3 + k * 0.32, 1.0, -0.42);
+        r.rotation.x = Math.PI / 2;
+        g.add(r);
+        rollers.push(r);
+      }
+      // portaal
+      b.box(0.18, 2.4, 0.18, C.dark, -0.5, 0, 1.05);
+      b.box(0.18, 2.4, 0.18, C.dark, -0.5, 0, -1.05);
+      b.box(0.36, 0.3, 2.4, C.yellow, -0.5, 2.3, 0);
+      b.box(0.4, 0.06, 2.45, C.dark, -0.5, 2.6, 0);
+      const carriage = partMesh((cb) => {
+        cb.box(0.5, 0.35, 0.45, C.orange, 0, 0, 0);
+        cb.box(0.52, 0.06, 0.47, C.dark, 0, 0.35, 0);
+      }, -0.5, 1.95, 0);
+      g.add(carriage);
+      const arm = partMesh((ab) => {
+        ab.cyl(0.06, 0.9, C.metal, 0, -0.9, 0, { seg: 6 });
+        ab.cyl(0.16, 0.12, C.dark, 0, -1.0, 0, { seg: 8 });
+      }, 0, 0, 0);
+      carriage.add(arm);
+      // inpakkrat aan de voorkant met een stapeltje appels
+      g.add(crateStack(3, 4).translateX(0.9).translateZ(1.35));
+      const crate = partMesh((kb) => {
+        kb.box(0.75, 0.45, 0.6, C.wood, 0, 0, 0);
+        kb.box(0.77, 0.08, 0.62, C.woodDark, 0, 0.3, 0);
+        kb.ico(0.13, C.apple, -0.15, 0.42, 0);
+        kb.ico(0.13, C.apple, 0.15, 0.43, 0.05);
+      }, -0.5, 0.25, 1.65);
+      g.add(crate);
+      panel(1.6, 1.3);
+      addLamp(-1.5, -1.05, 2.2);
+      finish((t, act, p) => {
+        for (const r of rollers) if (act > 0.01) r.rotation.y += 0.25 * (0.4 + act);
+        // de arm pakt bij het einde van elke cyclus een appel van de band en zet hem in het krat
+        const k = act > 0.01 ? p : 0;
+        carriage.position.z = k < 0.5 ? 0 : Math.sin(((k - 0.5) / 0.5) * Math.PI) * 1.2;
+        arm.position.y = -Math.max(stroke(k, 0.25, 0.5), stroke(k, 0.62, 0.85)) * 0.55;
+        crate.position.y = 0.25 + stroke(k, 0.8, 1) * 0.06;
+      });
       break;
     }
     case 'juice': {
-      b.box(2.2, 0.3, 1.8, C.metalDark, 0, 0, 0);
-      b.box(0.25, 2.6, 0.25, C.metal, -0.9, 0, 0.75);
-      b.box(0.25, 2.6, 0.25, C.metal, -0.9, 0, -0.75);
-      b.box(0.25, 2.6, 0.25, C.metal, 0.9, 0, 0.75);
-      b.box(0.25, 2.6, 0.25, C.metal, 0.9, 0, -0.75);
-      b.box(2.2, 0.4, 1.8, C.yellow, 0, 2.6, 0);
-      b.cyl(0.6, 2.2, C.yellow, -0.1, 0, -1.8, { seg: 10 });
-      b.sphere(0.6, C.yellow, -0.1, 2.2, -1.8, { sy: 0.5 });
-      b.cyl(0.6, 2.2, 0xffe08a, 1.3, 0, -1.8, { seg: 10 });
-      b.sphere(0.6, 0xffe08a, 1.3, 2.2, -1.8, { sy: 0.5 });
-      b.cyl(0.08, 1.4, C.metal, 0.6, 1.6, -1.2, { seg: 6, rz: Math.PI / 2 });
-      const pb = new Builder();
-      pb.box(0.3, 0.9, 0.3, C.metal, 0, 0, 0);
-      pb.box(1.4, 0.25, 1.2, C.metalDark, 0, -0.25, 0);
-      const piston = pb.mesh();
-      piston.position.set(0, 1.7, 0);
+      // pers met stempel, trechter met appels, twee sapvaten met kijkglas en een vulkraan
+      b.box(2.2, 0.3, 1.9, C.metalDark, 0, 0, 0);
+      for (const x of [-0.9, 0.9]) for (const z of [-0.78, 0.78]) b.box(0.22, 2.7, 0.22, C.metal, x, 0, z);
+      b.box(2.3, 0.45, 1.95, C.yellow, 0, 2.65, 0);
+      b.box(2.32, 0.08, 1.97, C.dark, 0, 3.1, 0);
+      // trechter boven op de pers
+      b.cyl(0.55, 0.7, C.metal, 0, 3.15, 0, { seg: 8, top: 1.6 });
+      for (let k = 0; k < 6; k++) b.ico(0.16, k % 2 ? C.apple : 0x8ccf3f, Math.cos(k) * 0.4, 3.85, Math.sin(k) * 0.4);
+      // sapvaten
+      for (const [x, col] of [[-0.2, C.yellow], [1.3, 0xffe08a]]) {
+        b.cyl(0.62, 2.2, col, x, 0, -1.9, { seg: 12 });
+        b.sphere(0.62, col, x, 2.2, -1.9, { sy: 0.45, w: 12 });
+        b.box(0.24, 1.3, 0.06, C.dark, x, 0.45, -1.29);
+        for (let r = 0; r < 3; r++) b.box(0.66, 0.06, 0.66, C.metalDark, x, 0.3 + r * 0.7, -1.9);
+      }
+      b.cyl(0.08, 1.5, C.metal, 0.55, 1.7, -1.25, { seg: 6, rz: Math.PI / 2 });
+      b.cyl(0.08, 0.9, C.metal, -0.2, 1.7, -1.25, { seg: 6, rx: Math.PI / 2 });
+      // sapniveau achter het kijkglas
+      const levels = [-0.2, 1.3].map((x) => {
+        const m = partMesh((lb) => lb.box(0.16, 1, 0.03, 0xff9f1a, 0, 0, 0), x, 0.48, -1.25, false);
+        g.add(m);
+        return m;
+      });
+      // stempel
+      const piston = partMesh((pb) => {
+        pb.cyl(0.14, 1.0, C.metal, 0, 0, 0, { seg: 8 });
+        pb.box(1.5, 0.22, 1.3, C.metalDark, 0, -0.22, 0);
+        pb.box(1.3, 0.06, 1.1, C.yellow, 0, -0.28, 0);
+      }, 0, 1.7, 0);
       g.add(piston);
-      anim = (t, act) => { piston.position.y = 1.55 + (act > 0.01 ? Math.abs(Math.sin(t * (2 + act * 3))) * 0.45 : 0.45); };
+      // vulkraan bij de uitgang
+      const nozzle = partMesh((nb) => {
+        nb.cyl(0.07, 0.5, C.metal, 0, 0, 0, { seg: 6 });
+        nb.cone(0.12, 0.18, C.dark, 0, -0.15, 0, 6);
+      }, 1.35, 1.2, 0);
+      g.add(nozzle);
+      b.box(0.16, 1.9, 0.16, C.metalDark, 1.35, 0, 0.75);
+      b.box(0.16, 0.16, 0.8, C.metalDark, 1.35, 1.75, 0.35);
+      gear(-1.12, 1.6, 0.4, 0.3);
+      addLamp(-1.05, 1.0, 2.3);
+      finish((t, act, p) => {
+        const k = act > 0.01 ? p : 0;
+        // stempel gaat langzaam omhoog en slaat aan het eind van elke cyclus neer
+        piston.position.y = 1.55 + (act > 0.01 ? 0.5 * (1 - stroke(k, 0.7, 0.95)) : 0.5);
+        nozzle.position.y = 1.2 - stroke(k, 0.4, 0.75) * 0.35;
+        levels.forEach((m, j) => {
+          const f = 0.55 + Math.sin(t * 0.8 + j * 2) * 0.25 * (act > 0.01 ? 1 : 0.2);
+          m.scale.y = f;
+          m.position.y = 0.48 - (1 - f) * 0.5 + 0.0;
+        });
+      });
       break;
     }
     case 'sauce': {
-      b.box(2.6, 0.3, 2.4, C.metalDark, 0, 0, -1.2);
-      b.cyl(1.0, 1.3, C.metal, 0, 0.3, -1.4, { seg: 12, top: 1.1 });
-      b.cyl(1.15, 0.12, C.metalDark, 0, 1.6, -1.4, { seg: 12 });
-      b.cyl(0.95, 0.05, 0xf6e7b0, 0, 1.55, -1.4, { seg: 12 });
-      b.box(0.15, 2.6, 0.15, C.dark, 1.0, 0, -0.4);
-      b.box(1.2, 0.15, 0.15, C.dark, 0.45, 2.5, -0.4);
-      b.box(0.5, 0.6, 0.5, color, 1.0, 0.3, 0.2);
-      const sb = new Builder();
-      sb.box(0.1, 1.2, 0.1, C.dark, 0, -1.1, 0);
-      sb.box(0.7, 0.3, 0.08, C.metalDark, 0, -1.1, 0);
-      const paddle = sb.mesh();
-      paddle.position.set(0, 2.5, -1.4);
+      // ketel op een vuurtje, roerarm, bubbelend appelmoes en een vulmachine voor potjes
+      b.box(2.8, 0.3, 2.6, C.metalDark, 0, 0, -1.3);
+      for (let k = 0; k < 4; k++) b.box(0.18, 0.5, 0.18, C.dark, Math.cos(k * 1.57 + 0.78) * 0.9, 0.3, -1.4 + Math.sin(k * 1.57 + 0.78) * 0.9);
+      b.cyl(1.0, 1.3, C.metal, 0, 0.75, -1.4, { seg: 14, top: 1.12 });
+      b.cyl(1.17, 0.14, C.metalDark, 0, 2.0, -1.4, { seg: 14 });
+      b.cyl(0.98, 0.05, 0xf6e7b0, 0, 1.92, -1.4, { seg: 14 });
+      b.box(0.5, 0.12, 0.12, C.metalDark, 1.25, 1.6, -1.4);
+      // roerportaal
+      b.box(0.15, 2.9, 0.15, C.dark, 1.15, 0, -0.35);
+      b.box(1.3, 0.15, 0.15, C.dark, 0.55, 2.8, -0.35);
+      b.box(0.15, 0.15, 1.1, C.dark, 0, 2.8, -0.9);
+      b.box(0.4, 0.35, 0.4, C.blue, 0, 2.95, -1.4);
+      // vuur onder de ketel
+      const fire = new THREE.Mesh(unitCyl(8), new THREE.MeshBasicMaterial({ color: 0xff7a1a }));
+      fire.scale.set(0.75, 0.25, 0.75);
+      fire.position.set(0, 0.35, -1.4);
+      g.add(fire);
+      const paddle = partMesh((sb) => {
+        sb.box(0.1, 1.3, 0.1, C.dark, 0, -1.25, 0);
+        sb.box(0.75, 0.3, 0.08, C.metalDark, 0, -1.2, 0);
+      }, 0, 2.8, -1.4);
       g.add(paddle);
-      steam(0, 1.9, -1.4, 3);
-      anim = (t, act) => { paddle.rotation.y = t * (0.5 + act * 3); animSteam(t, act); };
+      bubbles(0, 1.97, -1.4, 0.95, 0xe8cf7d, 5);
+      // vulmachine boven de band
+      b.box(0.9, 0.9, 1.4, color, 0.9, 1.3, 0);
+      b.box(0.92, 0.12, 1.42, C.dark, 0.9, 2.2, 0);
+      b.box(0.15, 1.3, 0.15, C.metalDark, 0.55, 0, 0.6);
+      b.box(0.15, 1.3, 0.15, C.metalDark, 1.25, 0, 0.6);
+      b.cyl(0.08, 1.0, C.metal, 0.4, 1.9, -0.6, { seg: 6, rz: 0.9 });
+      const filler = partMesh((fb) => {
+        fb.cyl(0.12, 0.45, C.metal, 0, 0, 0, { seg: 8 });
+        fb.cone(0.16, 0.15, C.dark, 0, -0.12, 0, 8);
+      }, 0.9, 0.95, 0);
+      g.add(filler);
+      steam(0, 2.2, -1.4, 3);
+      addLamp(-1.3, 0.9, 2.3);
+      finish((t, act, p) => {
+        const k = act > 0.01 ? p : 0;
+        paddle.rotation.y += act > 0.01 ? 0.02 * (0.5 + act * 3) : 0;
+        fire.visible = act > 0.01;
+        fire.scale.y = 0.2 + Math.abs(Math.sin(t * 11)) * 0.1;
+        filler.position.y = 0.95 - stroke(k, 0.65, 0.95) * 0.4;
+        animSteam(t, act);
+      });
       break;
     }
     case 'chips': {
-      b.box(1.2, 1.4, 1.6, C.metal, -1.4, 0, 0);
-      b.box(1.25, 0.25, 1.65, C.blue, -1.4, 1.4, 0);
+      // snijmachine met trechter en draaiend mes, droogoven met gloed, ventilator en schoorsteen
+      b.box(1.2, 1.4, 1.7, C.metal, -1.4, 0, 0);
+      b.box(1.25, 0.25, 1.75, C.blue, -1.4, 1.4, 0);
+      b.cyl(0.45, 0.6, C.metal, -1.4, 1.65, 0, { seg: 8, top: 1.5 });
+      for (let k = 0; k < 4; k++) b.ico(0.15, C.apple, -1.4 + Math.cos(k * 1.6) * 0.3, 2.3, Math.sin(k * 1.6) * 0.3);
       b.box(3.0, 1.8, 1.9, 0xd06b3a, 0.8, 0, 0);
       b.box(3.05, 0.3, 1.95, C.dark, 0.8, 1.8, 0);
-      b.cyl(0.18, 0.9, C.metalDark, 1.6, 2.0, -0.4, { seg: 6 });
-      const glow = new THREE.Mesh(unitBox(), GLOW);
+      for (let k = 0; k < 5; k++) b.box(0.08, 1.2, 0.04, 0xa94f26, -0.2 + k * 0.5, 0.3, -0.96);
+      b.cyl(0.2, 1.1, C.metalDark, 1.75, 2.1, -0.5, { seg: 8 });
+      b.cyl(0.26, 0.12, C.dark, 1.75, 3.2, -0.5, { seg: 8 });
+      b.box(0.9, 0.12, 0.9, C.metalDark, 0.4, 2.1, 0.2);
+      const glow = new THREE.Mesh(unitBox(), GLOW.clone());
       glow.scale.set(2.2, 0.4, 0.05);
-      glow.position.set(0.8, 1.0, 0.96);
+      glow.position.set(0.8, 0.95, 0.96);
       g.add(glow);
-      const bl = new Builder();
-      bl.cyl(0.45, 0.06, C.metalDark, 0, 0, 0, { seg: 10, rx: Math.PI / 2 });
-      bl.box(0.85, 0.07, 0.08, C.white, 0, -0.03, 0.06, 0, 0, 0);
-      const blade = bl.mesh();
-      blade.position.set(-1.4, 1.1, 0.85);
+      b.box(2.4, 0.08, 0.06, C.dark, 0.8, 0.9, 0.97);
+      b.box(2.4, 0.08, 0.06, C.dark, 0.8, 1.38, 0.97);
+      const blade = partMesh((bl) => {
+        bl.cyl(0.45, 0.06, C.metalDark, 0, -0.03, 0, { seg: 10 });
+        bl.box(0.85, 0.07, 0.08, C.white, 0, -0.03, 0);
+        bl.box(0.08, 0.07, 0.85, C.white, 0, -0.03, 0);
+      }, -1.4, 1.0, 0.86);
+      blade.rotation.x = Math.PI / 2;
       g.add(blade);
-      steam(1.6, 2.9, -0.4, 2);
-      anim = (t, act) => { blade.rotation.z = -t * (1 + act * 10); glow.visible = act > 0.01; animSteam(t, act); };
+      // ventilator op het dak van de oven
+      const fan = partMesh((fb) => {
+        for (let k = 0; k < 4; k++) fb.box(0.75, 0.04, 0.16, C.metal, Math.cos(k * 1.57) * 0.3, 0, Math.sin(k * 1.57) * 0.3, -k * 1.57);
+        fb.cyl(0.1, 0.08, C.dark, 0, 0, 0, { seg: 6 });
+      }, 0.4, 2.25, 0.2);
+      g.add(fan);
+      steam(1.75, 3.3, -0.5, 3, 0.2, 0xdddddd);
+      addLamp(-2.15, -0.9, 2.2);
+      finish((t, act) => {
+        if (act > 0.01) { blade.rotation.y += 0.3 * (1 + act * 3); fan.rotation.y += 0.25 * (1 + act * 2); }
+        glow.visible = act > 0.01;
+        glow.material.color.setHSL(0.06, 1, 0.55 + Math.sin(t * 5) * 0.06);
+        animSteam(t, act);
+      });
       break;
     }
     case 'pie': {
-      b.box(3.4, 1.6, 2.2, 0xb5523b, 0, 0, 0);
+      // bakkersoven van baksteen met deurtje dat opengaat als er een taart klaar is
+      b.box(3.4, 1.7, 2.2, 0xb5523b, 0, 0, 0);
       for (let i = 0; i < 4; i++) b.box(3.45, 0.06, 2.25, 0x9a4332, 0, 0.3 + i * 0.35, 0);
-      b.cyl(1.25, 0.9, 0xb5523b, 0, 1.6, 0, { seg: 8, top: 0.55 });
-      b.box(0.5, 1.6, 0.5, 0x8c3b2c, 0.9, 1.8, -0.5);
-      b.box(1.0, 0.25, 0.4, C.dark, 1.9, 0.85, 0.9);
+      for (let i = 0; i < 6; i++) b.box(0.06, 1.6, 2.25, 0x9a4332, -1.5 + i * 0.6, 0.05, 0);
+      b.cyl(1.25, 0.9, 0xb5523b, 0, 1.7, 0, { seg: 8, top: 0.55 });
+      b.box(0.55, 1.7, 0.55, 0x8c3b2c, 0.9, 1.9, -0.5);
+      b.box(0.65, 0.15, 0.65, C.dark, 0.9, 3.6, -0.5);
+      b.box(1.6, 0.8, 0.12, C.dark, 0, 0.3, 1.1);
+      // plank met afkoelende taarten
+      b.box(1.0, 0.1, 0.5, C.wood, 1.9, 0.85, 0.9);
+      b.cyl(0.18, 0.08, 0xd9a35b, 1.65, 0.95, 0.9, { seg: 8 });
+      b.cyl(0.18, 0.08, 0xd9a35b, 2.1, 0.95, 0.9, { seg: 8 });
+      b.box(0.08, 0.85, 0.08, C.woodDark, 1.5, 0, 0.75);
+      b.box(0.08, 0.85, 0.08, C.woodDark, 2.3, 0, 0.75);
       const glow = new THREE.Mesh(unitBox(), GLOW.clone());
-      glow.scale.set(1.4, 0.55, 0.05);
-      glow.position.set(0, 0.6, 1.11);
+      glow.scale.set(1.4, 0.6, 0.05);
+      glow.position.set(0, 0.4, 1.12);
       g.add(glow);
-      steam(0.9, 3.5, -0.5, 3);
-      anim = (t, act) => { glow.visible = act > 0.01; glow.material.color.setHSL(0.07, 1, 0.55 + Math.sin(t * 6) * 0.05); animSteam(t, act); };
+      // ovendeur scharniert onderaan
+      const door = partMesh((db) => {
+        db.box(1.5, 0.66, 0.08, C.metalDark, 0, 0, 0);
+        db.box(1.0, 0.3, 0.02, 0xffb35c, 0, 0.18, 0.05);
+        db.box(0.8, 0.07, 0.07, C.metal, 0, 0.5, 0.08);
+      }, 0, 0.35, 1.18);
+      g.add(door);
+      // thermometer
+      b.cyl(0.24, 0.05, C.white, -1.25, 1.25, 1.12, { seg: 10, rx: Math.PI / 2 });
+      const needle = partMesh((nb) => nb.box(0.03, 0.18, 0.02, C.red, 0, 0, 0), -1.25, 1.25, 1.16, false);
+      g.add(needle);
+      steam(0.9, 3.8, -0.5, 3, 0.24, 0xcfcfcf);
+      addLamp(-1.9, 0.9, 2.3);
+      finish((t, act, p) => {
+        const k = act > 0.01 ? p : 0;
+        glow.visible = act > 0.01;
+        glow.material.color.setHSL(0.07, 1, 0.55 + Math.sin(t * 6) * 0.05);
+        door.rotation.x = stroke(k, 0.78, 1) * 1.1;
+        needle.rotation.z = act > 0.01 ? -0.6 + Math.sin(t * 2) * 0.15 : 1.0;
+        animSteam(t, act);
+      });
       break;
     }
     case 'cider': {
-      for (const [x, z] of [[-0.9, -1.7], [0.9, -1.7]]) {
-        b.cyl(0.85, 2.6, 0xc77b3a, x, 0.3, z, { seg: 10 });
-        b.cone(0.85, 0.6, 0xb06a2f, x, 2.9, z, 10);
+      // twee gistvaten, een kijkglas met opstijgende belletjes, een kraanwiel en een vulkraan
+      for (const [x, z] of [[-0.95, -1.75], [0.95, -1.75]]) {
+        b.cyl(0.85, 2.6, 0xc77b3a, x, 0.3, z, { seg: 12 });
+        b.cone(0.85, 0.6, 0xb06a2f, x, 2.9, z, 12);
+        for (let r = 0; r < 3; r++) b.cyl(0.88, 0.08, C.metalDark, x, 0.6 + r * 0.8, z, { seg: 12 });
         for (let k = 0; k < 4; k++) b.box(0.15, 0.3, 0.15, C.metalDark, x + Math.cos(k * 1.57) * 0.6, 0, z + Math.sin(k * 1.57) * 0.6);
       }
-      b.cyl(0.08, 1.8, C.metal, 0, 2.5, -1.7, { seg: 6, rz: Math.PI / 2 });
+      b.cyl(0.08, 1.9, C.metal, 0, 2.5, -1.75, { seg: 6, rz: Math.PI / 2 });
       b.cyl(0.08, 1.4, C.metal, 0, 1.0, -1.0, { seg: 6 });
+      // kijkglas
+      b.cyl(0.18, 1.6, 0xbfe8ff, 0, 0.6, -1.15, { seg: 8 });
+      b.cyl(0.22, 0.1, C.metalDark, 0, 0.55, -1.15, { seg: 8 });
+      b.cyl(0.22, 0.1, C.metalDark, 0, 2.2, -1.15, { seg: 8 });
+      const fizz = [];
+      for (let k = 0; k < 5; k++) {
+        const m = partMesh((fb) => fb.sphere(0.06, 0xffffff, 0, 0, 0, { w: 5, h: 4 }), (k % 2 - 0.5) * 0.12, 0.7, -0.97, false);
+        m.userData.phase = k / 5;
+        g.add(m);
+        fizz.push(m);
+      }
       b.box(1.6, 1.0, 1.4, C.metal, 0, 0, 0);
       b.box(1.65, 0.15, 1.45, C.leaf, 0, 1.0, 0);
-      const gb = new Builder();
-      gb.cyl(0.25, 0.06, C.white, 0, 0, 0, { seg: 10, rx: Math.PI / 2 });
-      const gauge = gb.mesh({ shadow: false });
-      gauge.position.set(-0.9, 1.6, -0.82);
-      g.add(gauge);
-      const nb = new Builder();
-      nb.box(0.04, 0.2, 0.03, C.red, 0, 0, 0);
-      const needle = nb.mesh({ shadow: false });
-      needle.position.set(-0.9, 1.6, -0.78);
+      b.box(0.5, 0.35, 0.05, C.dark, 0.4, 0.45, 0.71);
+      // manometer
+      b.cyl(0.25, 0.06, C.white, -0.95, 1.6, -0.88, { seg: 10, rx: Math.PI / 2 });
+      const needle = partMesh((nb) => nb.box(0.04, 0.2, 0.03, C.red, 0, 0.08, 0), -0.95, 1.6, -0.82, false);
       g.add(needle);
-      steam(0.9, 3.5, -1.7, 2);
-      anim = (t, act) => { needle.rotation.z = act > 0.01 ? Math.sin(t * 3) * 0.8 : -1.2; animSteam(t, act * 0.6); };
+      // kraanwiel
+      const wheel = partMesh((wb) => {
+        wb.cyl(0.28, 0.05, C.red, 0, 0, 0, { seg: 10 });
+        wb.box(0.5, 0.06, 0.06, C.red, 0, 0.02, 0);
+        wb.box(0.06, 0.06, 0.5, C.red, 0, 0.02, 0);
+      }, 0.95, 1.4, -0.85);
+      wheel.rotation.x = Math.PI / 2;
+      g.add(wheel);
+      const nozzle = partMesh((nb) => {
+        nb.cyl(0.06, 0.45, C.metal, 0, 0, 0, { seg: 6 });
+        nb.cone(0.11, 0.14, C.dark, 0, -0.12, 0, 6);
+      }, 1.15, 1.25, 0);
+      g.add(nozzle);
+      b.box(0.14, 1.8, 0.14, C.metalDark, 1.15, 0, 0.7);
+      b.box(0.14, 0.14, 0.75, C.metalDark, 1.15, 1.65, 0.33);
+      steam(0.95, 3.5, -1.75, 2);
+      addLamp(-1.1, 0.95, 2.3);
+      finish((t, act, p) => {
+        const k = act > 0.01 ? p : 0;
+        needle.rotation.z = act > 0.01 ? Math.sin(t * 3) * 0.6 : -1.2;
+        if (act > 0.01) wheel.rotation.y += 0.03;
+        fizz.forEach((m) => {
+          const q = (t * (0.5 + act) + m.userData.phase) % 1;
+          m.position.y = 0.7 + q * 1.4;
+          m.scale.setScalar(act > 0.01 ? 1 : 0.0001);
+        });
+        nozzle.position.y = 1.25 - stroke(k, 0.55, 0.9) * 0.4;
+        animSteam(t, act * 0.6);
+      });
       break;
     }
     case 'syrup': {
+      // stroopketel met vuur, roerarm, bubbels en een tuit waar stroop uit druppelt
       b.box(3.0, 0.3, 2.6, C.metalDark, 0, 0, -1.3);
-      b.cyl(1.2, 1.6, 0x5a3a26, -0.2, 0.3, -1.5, { seg: 10, top: 0.9 });
-      b.cyl(1.1, 0.1, 0x7a3b1d, -0.2, 1.9, -1.5, { seg: 10 });
-      b.cyl(0.35, 0.8, C.metal, 1.1, 0.3, -0.3, { seg: 8, top: 0.4 });
-      b.cyl(0.08, 1.5, C.metal, 0.5, 1.4, -0.9, { seg: 6, rz: 0.9 });
-      b.box(0.2, 3.0, 0.2, C.dark, -1.5, 0, -0.4);
-      b.box(1.5, 0.2, 0.2, C.dark, -0.9, 2.9, -0.4);
-      const sb = new Builder();
-      sb.box(0.12, 1.4, 0.12, C.dark, 0, -1.3, 0);
-      sb.box(0.9, 0.12, 0.3, C.metalDark, 0, -1.2, 0);
-      const paddle = sb.mesh();
-      paddle.position.set(-0.2, 2.9, -1.5);
+      b.cyl(1.2, 1.7, 0x5a3a26, -0.2, 0.55, -1.5, { seg: 12, top: 0.9 });
+      for (let r = 0; r < 2; r++) b.cyl(1.17 - r * 0.15, 0.08, C.metalDark, -0.2, 0.9 + r * 0.7, -1.5, { seg: 12 });
+      b.cyl(1.1, 0.1, 0x7a3b1d, -0.2, 2.2, -1.5, { seg: 12 });
+      b.cyl(0.35, 0.8, C.metal, 1.15, 0.3, -0.3, { seg: 8, top: 0.4 });
+      b.cyl(0.08, 1.5, C.metal, 0.55, 1.4, -0.9, { seg: 6, rz: 0.9 });
+      b.box(0.2, 3.2, 0.2, C.dark, -1.55, 0, -0.4);
+      b.box(1.55, 0.2, 0.2, C.dark, -0.9, 3.1, -0.4);
+      b.box(0.2, 0.2, 1.1, C.dark, -0.2, 3.1, -0.95);
+      b.box(0.45, 0.4, 0.45, C.orange, -0.2, 3.25, -1.5);
+      const fire = new THREE.Mesh(unitCyl(8), new THREE.MeshBasicMaterial({ color: 0xff6a10 }));
+      fire.scale.set(0.9, 0.25, 0.9);
+      fire.position.set(-0.2, 0.32, -1.5);
+      g.add(fire);
+      const paddle = partMesh((sb) => {
+        sb.box(0.12, 1.5, 0.12, C.dark, 0, -1.4, 0);
+        sb.box(0.95, 0.12, 0.3, C.metalDark, 0, -1.3, 0);
+      }, -0.2, 3.1, -1.5);
       g.add(paddle);
-      steam(-0.2, 2.2, -1.5, 3);
-      anim = (t, act) => { paddle.rotation.y = -t * (0.4 + act * 2); animSteam(t, act); };
+      bubbles(-0.2, 2.26, -1.5, 1.05, 0x9a4a22, 5);
+      // tuit boven de band met een druppel
+      b.cyl(0.08, 1.2, C.metal, 0.6, 1.9, -0.6, { seg: 6, rx: 1.1 });
+      b.cone(0.12, 0.2, C.dark, 0.6, 1.25, 0, 6);
+      const drop = partMesh((db) => db.sphere(0.09, 0x7a3b1d, 0, 0, 0, { w: 6, h: 4, sy: 1.3 }), 0.6, 1.2, 0, false);
+      g.add(drop);
+      b.box(0.14, 1.5, 0.14, C.metalDark, 0.6, 0, 0.7);
+      b.box(0.14, 0.14, 0.75, C.metalDark, 0.6, 1.35, 0.33);
+      steam(-0.2, 2.4, -1.5, 3);
+      addLamp(1.6, 0.9, 2.3);
+      finish((t, act, p) => {
+        if (act > 0.01) paddle.rotation.y -= 0.02 * (0.4 + act * 2);
+        fire.visible = act > 0.01;
+        fire.scale.y = 0.2 + Math.abs(Math.sin(t * 9)) * 0.1;
+        const q = act > 0.01 ? (p * 2) % 1 : 0;
+        drop.position.y = 1.2 - q * q * 0.9;
+        drop.scale.setScalar(act > 0.01 ? 0.6 + q * 0.4 : 0.0001);
+        animSteam(t, act);
+      });
       break;
     }
     case 'candy': {
-      b.box(2.4, 0.9, 2.4, 0xff9ac5, 0, 0, -1.4);
-      b.box(2.5, 0.12, 2.5, C.white, 0, 0.9, -1.4);
-      b.cyl(0.2, 2.0, C.white, 0, 0.9, -1.4, { seg: 8 });
-      b.cyl(0.6, 0.6, 0xff6fa8, 1.6, 0, 0.9, { seg: 8 });
-      b.cyl(0.65, 0.12, 0xc0392b, 1.6, 0.6, 0.9, { seg: 8 });
-      const wb = new Builder();
-      wb.cyl(1.2, 0.12, 0xffd3e6, 0, 0, 0, { seg: 12 });
+      // draaimolen die appels aan stokjes door een bak karamel haalt; gedoopte appels zijn rood-glimmend
+      b.box(2.6, 0.9, 2.6, 0xff9ac5, 0, 0, -1.4);
+      b.box(2.7, 0.12, 2.7, C.white, 0, 0.9, -1.4);
+      for (let k = 0; k < 8; k++) b.box(0.3, 0.6, 0.04, k % 2 ? C.white : 0xff6fa8, -1.1 + k * 0.32, 0.15, -0.09);
+      // karamelbak (ring) en middenpaal
+      b.cyl(1.25, 0.45, C.metalDark, 0, 1.0, -1.4, { seg: 16 });
+      b.cyl(1.18, 0.05, 0xb5361f, 0, 1.43, -1.4, { seg: 16 });
+      b.cyl(0.35, 0.5, 0xff9ac5, 0, 1.0, -1.4, { seg: 10 });
+      b.cyl(0.14, 2.4, C.white, 0, 1.0, -1.4, { seg: 8 });
+      b.cone(0.45, 0.4, 0xff6fa8, 0, 3.75, -1.4, 10);
+      // inpaktafel voor de band
+      b.cyl(0.6, 0.6, 0xff6fa8, 1.6, 0, 0.95, { seg: 10 });
+      b.cyl(0.65, 0.12, 0xc0392b, 1.6, 0.6, 0.95, { seg: 10 });
+      const spider = new THREE.Group();
+      spider.position.set(0, 3.2, -1.4);
+      g.add(spider);
+      const hub = partMesh((hb) => {
+        hb.cyl(0.3, 0.2, 0xffd3e6, 0, -0.1, 0, { seg: 10 });
+        for (let k = 0; k < 6; k++) {
+          const a = (k / 6) * Math.PI * 2;
+          hb.box(1.0, 0.07, 0.07, C.white, Math.cos(a) * 0.5, 0, Math.sin(a) * 0.5, -a);
+        }
+      });
+      spider.add(hub);
+      const arms = [];
       for (let k = 0; k < 6; k++) {
         const a = (k / 6) * Math.PI * 2;
-        const x = Math.cos(a) * 0.95, z = Math.sin(a) * 0.95;
-        wb.box(0.05, 0.5, 0.05, C.wood, x, 0.12, z);
-        wb.sphere(0.24, 0xc0392b, x, 0.75, z);
+        const arm = new THREE.Group();
+        arm.position.set(Math.cos(a) * 0.95, 0, Math.sin(a) * 0.95);
+        const stick = partMesh((sb) => sb.box(0.04, 0.9, 0.04, C.wood, 0, -0.9, 0));
+        const apple = partMesh((ab) => {
+          ab.sphere(0.2, C.apple, 0, -1.05, 0, { w: 8, h: 6 });
+          ab.box(0.03, 0.08, 0.03, C.trunk, 0, -0.85, 0);
+        });
+        const coat = partMesh((cb) => cb.sphere(0.23, 0xb5161f, 0, -1.07, 0, { w: 8, h: 6, sy: 0.95 }));
+        arm.add(stick, apple, coat);
+        spider.add(arm);
+        arms.push({ arm, coat, a });
       }
-      const wheel = wb.mesh();
-      wheel.position.set(0, 2.2, -1.4);
-      g.add(wheel);
-      anim = (t, act) => { wheel.rotation.y = t * (0.3 + act * 2); };
+      addLamp(1.5, -0.2, 2.3);
+      finish((t, act) => {
+        if (act > 0.01) spider.rotation.y += 0.012 * (0.4 + act * 2);
+        for (const { arm, coat, a } of arms) {
+          // hoek in de wereld: rechtsachter dopen ze in de karamel, vooraan gaan ze eraf
+          const w = (((a - spider.rotation.y) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+          const dip = Math.max(0, Math.sin(w - 0.3)) ** 6;
+          arm.position.y = -dip * 0.55;
+          coat.visible = w > 1.3 && w < 5.6;
+        }
+      });
       break;
     }
     default:
       b.box(2, 1.5, 2, color, 0, 0, 0);
+      addLamp(-1.2, 0.9, 2.2);
+      finish(() => {});
   }
-  const body = b.mesh();
+  body = b.mesh();
   g.add(body);
   g.userData.body = body;
   return { group: g, anim };

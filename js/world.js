@@ -130,7 +130,9 @@ class Belt {
       const b = this.points[i + 1];
       const t = this.lengths[i] > 0 ? Math.min(1, rest / this.lengths[i]) : 0;
       const ry = Math.atan2(-(b.z - a.z), b.x - a.x);
-      it.pool.push(a.x + (b.x - a.x) * t, BELT_Y, a.z + (b.z - a.z) * t, ry);
+      // een vers product groeit even op als het uit de machine komt
+      const sc = it.fresh && it.d < 0.7 ? 0.45 + 0.55 * Math.sin((it.d / 0.7) * Math.PI / 2) : 1;
+      it.pool.push(a.x + (b.x - a.x) * t, BELT_Y, a.z + (b.z - a.z) * t, ry, sc);
     }
   }
 }
@@ -781,6 +783,7 @@ export class World {
         const stars = starCount(state.lines[i]);
         o.worker2.visible = stars >= 2;
         o.crates.visible = stars >= 3;
+        if (prod) o.lineStatus = prod.lines[i].status;
       }
       if (this.slotMarks[i]) {
         const show = !unlocked;
@@ -1141,7 +1144,10 @@ export class World {
     this.lineObjs.forEach((o) => {
       if (!o) return;
       const act = o.activity;
-      o.machine.anim(t + o.phase, act);
+      o.pop = Math.max(0, (o.pop || 0) - dt * 5);
+      // lamp: rood als het magazijn vol zit, oranje als de machine op appels wacht
+      const status = o.lineStatus === 'full' && act <= 0.01 ? 'jam' : act > 0.01 ? 'run' : 'wait';
+      o.machine.anim(t + o.phase, act, { prog: o.prog, status, pop: o.pop });
       o.worker.userData.body.position.y = act > 0 ? Math.abs(Math.sin(t * 5 + o.phase)) * 0.08 : 0;
       o.worker2.userData.body.position.y = act > 0 ? Math.abs(Math.sin(t * 5 + o.phase + 1)) * 0.08 : 0;
     });
@@ -1270,9 +1276,10 @@ export class World {
         running = true;
         if (o.prog >= 1) {
           if (f.output.canInsert(0)) {
-            f.output.insert({ d: 0, pool: this.productPools[i] });
+            f.output.insert({ d: 0, pool: this.productPools[i], fresh: true });
             o.held -= k;
             o.prog = 0;
+            o.pop = 1;
           } else { o.prog = 1; running = false; }
         }
       }
@@ -1282,6 +1289,7 @@ export class World {
         const d = this.colJoin(i);
         if (!this.collector.canInsert(d)) { waiting = true; return false; }
         it.d = d;
+        it.fresh = false;
         this.collector.insert(it);
         return true;
       });
